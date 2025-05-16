@@ -1,14 +1,10 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function Home() {
   const router = useRouter();
-
-  const handleLogin = () => {
-    // Manually redirect to the Auth0 login endpoint
-    window.location.href = '/api/auth/login?returnTo=/upload&prompt=login';
-  };
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-blue-500 p-8">
@@ -24,13 +20,12 @@ export default function Home() {
           Start Now
         </button>
 
-        <a
-          href="http://localhost:3000/api/auth/login?returnTo=/upload&prompt=login"
+        <Link
+          href="/api/auth/login?returnTo=/upload&prompt=login"
           className="bg-gray-800 text-white px-6 py-3 rounded-lg shadow hover:bg-gray-900 transition"
         >
           Login / Sign Up
-        </a>
-
+        </Link>
       </div>
     </main>
   );
