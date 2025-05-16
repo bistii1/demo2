@@ -1,22 +1,23 @@
+// pages/upload.tsx
 import { useState } from 'react';
-import { useUser } from '@auth0/nextjs-auth0/client';
-import Link from 'next/link';
+import { pdfjs, Document, Page } from 'react-pdf';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
+
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.js`;
 
 export default function Upload() {
-  const { user } = useUser();
-
-  const [guidelines, setGuidelines] = useState<File | null>(null);
-  const [proposal, setProposal] = useState<File | null>(null);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [file1, setFile1] = useState<File | null>(null);
+  const [file2, setFile2] = useState<File | null>(null);
+  const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); // ✅ prevent page refresh or navigation
-
-    if (!guidelines || !proposal) return alert("Please upload both PDFs.");
+    e.preventDefault();
+    setSuccess(false);
 
     const formData = new FormData();
-    formData.append('guidelines', guidelines);
-    formData.append('proposal', proposal);
+    if (file1) formData.append('file1', file1);
+    if (file2) formData.append('file2', file2);
 
     try {
       const res = await fetch('/api/upload', {
@@ -24,63 +25,68 @@ export default function Upload() {
         body: formData,
       });
 
-      if (!res.ok) throw new Error("Upload failed");
-
-      setUploadSuccess(true);
-    } catch (err) {
-      alert("Something went wrong while uploading.");
-      console.error(err);
+      if (res.ok) {
+        setSuccess(true);
+      } else {
+        console.error('Upload failed');
+      }
+    } catch (error) {
+      console.error('Error submitting PDFs:', error);
     }
   };
 
   return (
-    <div className="min-h-screen bg-white text-blue-900">
-      {/* Navbar */}
-      <nav className="flex justify-between items-center p-4 shadow-md">
-        <Link href="/" className="text-lg font-semibold">Home</Link>
-        <div className="space-x-4">
-          <Link href="/pastuploads">Past Uploads</Link>
-          {user && (
-            <Link href="/api/auth/logout" legacyBehavior>
-              <a className="text-red-600 font-semibold">Sign Out</a>
-            </Link>
-          )}
-        </div>
-      </nav>
-
-      {/* Upload Section */}
-      <main className="flex flex-col items-center justify-center p-8">
-        <h1 className="text-2xl font-bold mb-8">Upload your PDF files</h1>
-
+    <div className="flex justify-center items-center min-h-screen bg-gray-50">
+      <div className="bg-white p-10 rounded-2xl shadow-md w-full max-w-5xl">
+        <h1 className="text-4xl font-bold text-center mb-8 text-blue-900">Upload Your PDF Files</h1>
         <form onSubmit={handleSubmit}>
-          <div className="flex gap-10 mb-6">
-            {/* Guidelines */}
-            <div className="w-64">
-              <label className="block mb-2 font-medium">Research Proposal Guidelines (PDF)</label>
-              <input type="file" accept="application/pdf" onChange={(e) => setGuidelines(e.target.files?.[0] || null)} />
-              {guidelines && <embed src={URL.createObjectURL(guidelines)} className="mt-2 w-full h-40" />}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <label className="block text-xl font-semibold text-blue-900 mb-2">Proposal Guidelines (PDF)</label>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setFile1(e.target.files?.[0] || null)}
+                className="w-full p-2 border rounded-md"
+              />
+              {file1 && (
+                <div className="border mt-4 p-2 rounded-lg">
+                  <Document file={file1}>
+                    <Page pageNumber={1} width={400} />
+                  </Document>
+                </div>
+              )}
             </div>
 
-            {/* Proposal */}
-            <div className="w-64">
-              <label className="block mb-2 font-medium">Draft Proposal (PDF)</label>
-              <input type="file" accept="application/pdf" onChange={(e) => setProposal(e.target.files?.[0] || null)} />
-              {proposal && <embed src={URL.createObjectURL(proposal)} className="mt-2 w-full h-40" />}
+            <div>
+              <label className="block text-xl font-semibold text-blue-900 mb-2">Draft Proposal (PDF)</label>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={(e) => setFile2(e.target.files?.[0] || null)}
+                className="w-full p-2 border rounded-md"
+              />
+              {file2 && (
+                <div className="border mt-4 p-2 rounded-lg">
+                  <Document file={file2}>
+                    <Page pageNumber={1} width={400} />
+                  </Document>
+                </div>
+              )}
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
-          >
-            Submit
-          </button>
-
-          {uploadSuccess && (
-            <p className="text-green-600 mt-4 font-semibold">Upload successful! 🎉</p>
-          )}
+          <div className="flex flex-col items-center mt-8 space-y-2">
+            <button
+              type="submit"
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg text-lg hover:bg-blue-700 transition"
+            >
+              Submit PDFs
+            </button>
+            {success && <p className="text-green-600 text-sm mt-2">✅ Successfully uploaded!</p>}
+          </div>
         </form>
-      </main>
+      </div>
     </div>
   );
 }
