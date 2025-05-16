@@ -1,25 +1,12 @@
 import { useState } from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
+import Link from "next/link";
 
 export default function UploadPage() {
   const { user } = useUser();
   const [guidelinesFile, setGuidelinesFile] = useState<File | null>(null);
   const [draftFile, setDraftFile] = useState<File | null>(null);
   const [success, setSuccess] = useState(false);
-  const [guidelinesPreview, setGuidelinesPreview] = useState<string | null>(null);
-  const [draftPreview, setDraftPreview] = useState<string | null>(null);
-
-  const handleFileChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    setter: React.Dispatch<React.SetStateAction<File | null>>,
-    previewSetter: React.Dispatch<React.SetStateAction<string | null>>
-  ) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setter(file);
-      previewSetter(URL.createObjectURL(file));
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,64 +17,71 @@ export default function UploadPage() {
     formData.append("draft", draftFile);
     if (user?.email) formData.append("email", user.email);
 
-    await fetch("/api/upload", {
+    const res = await fetch("/api/upload", {
       method: "POST",
       body: formData,
     });
 
-    setSuccess(true);
+    if (res.ok) setSuccess(true);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
-      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-5xl">
-        <h1 className="text-3xl font-bold text-center text-blue-900 mb-8">Upload Your PDF Files</h1>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h2 className="text-xl font-semibold text-blue-900 mb-2">Proposal Guidelines (PDF)</h2>
+    <div className="min-h-screen bg-white text-blue-900">
+      {/* Nav Bar */}
+      <nav className="flex justify-between items-center p-4 shadow-md bg-white">
+        <Link href="/" className="text-lg font-semibold text-blue-900">Home</Link>
+        {user && (
+          <a href="/api/auth/logout" className="text-red-600 font-semibold">Sign Out</a>
+        )}
+      </nav>
+
+      {/* Upload Section */}
+      <main className="flex flex-col items-center justify-center p-8">
+        <h1 className="text-2xl font-bold mb-8">Upload your PDF files</h1>
+
+        <form onSubmit={handleSubmit} className="flex flex-col items-center">
+          <div className="flex gap-10 mb-6">
+            {/* Guidelines */}
+            <div className="w-64">
+              <label className="block mb-2 font-medium text-gray-900">Research Proposal Guidelines (PDF)</label>
               <input
                 type="file"
                 accept="application/pdf"
-                onChange={(e) => handleFileChange(e, setGuidelinesFile, setGuidelinesPreview)}
-                className="border rounded-md w-full px-3 py-2"
+                className="text-gray-900"
+                onChange={(e) => setGuidelinesFile(e.target.files?.[0] || null)}
               />
-              {guidelinesPreview && (
-                <iframe
-                  src={guidelinesPreview}
-                  className="mt-4 w-full h-64 border-2 border-black"
-                />
+              {guidelinesFile && (
+                <embed src={URL.createObjectURL(guidelinesFile)} className="mt-2 w-full h-40 border" />
               )}
             </div>
 
-            <div>
-              <h2 className="text-xl font-semibold text-blue-900 mb-2">Draft Proposal (PDF)</h2>
+            {/* Draft */}
+            <div className="w-64">
+              <label className="block mb-2 font-medium text-gray-900">Draft Proposal (PDF)</label>
               <input
                 type="file"
                 accept="application/pdf"
-                onChange={(e) => handleFileChange(e, setDraftFile, setDraftPreview)}
-                className="border rounded-md w-full px-3 py-2"
+                className="text-gray-900"
+                onChange={(e) => setDraftFile(e.target.files?.[0] || null)}
               />
-              {draftPreview && (
-                <iframe
-                  src={draftPreview}
-                  className="mt-4 w-full h-64 border-2 border-black"
-                />
+              {draftFile && (
+                <embed src={URL.createObjectURL(draftFile)} className="mt-2 w-full h-40 border" />
               )}
             </div>
           </div>
 
-          <div className="text-center">
-            <button
-              type="submit"
-              className="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg hover:bg-blue-700 transition"
-            >
-              Submit PDFs
-            </button>
-            {success && <p className="mt-3 text-green-600 font-medium">Upload successful!</p>}
-          </div>
+          <button
+            type="submit"
+            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+          >
+            Submit
+          </button>
+
+          {success && (
+            <p className="text-green-600 mt-4 font-semibold">Upload successful! 🎉</p>
+          )}
         </form>
-      </div>
+      </main>
     </div>
   );
 }
