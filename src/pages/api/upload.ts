@@ -35,15 +35,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     const guidelinesFile = getFile(files.guidelines);
-    const proposalFile = getFile(files.proposal); // NOTE: updated to match frontend
+    const draftFile = getFile(files.draft); // match the frontend field name
 
-    if (!guidelinesFile || !proposalFile) {
+    if (!guidelinesFile || !draftFile) {
       return res.status(400).json({ message: 'Both files are required' });
     }
 
     try {
       const guidelinesBuffer = await fs.readFile(guidelinesFile.filepath);
-      const proposalBuffer = await fs.readFile(proposalFile.filepath);
+      const draftBuffer = await fs.readFile(draftFile.filepath);
 
       const client = await clientPromise;
       const db = client.db('pdfUploader');
@@ -57,9 +57,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           data: guidelinesBuffer,
         },
         draft: {
-          filename: proposalFile.originalFilename,
-          contentType: proposalFile.mimetype,
-          data: proposalBuffer,
+          filename: draftFile.originalFilename,
+          contentType: draftFile.mimetype,
+          data: draftBuffer,
         },
       });
 
