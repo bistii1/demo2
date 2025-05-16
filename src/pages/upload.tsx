@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Link from 'next/link';
 
 export default function UploadPage() {
   const [guidelines, setGuidelines] = useState<File | null>(null);
@@ -58,12 +59,12 @@ export default function UploadPage() {
         </button>
       </form>
 
-      <a
+      <Link
         href="/api/auth/logout?returnTo=/"
         className="mt-6 bg-red-600 px-4 py-2 rounded-lg shadow hover:bg-red-700 transition"
       >
         Home (Sign Out)
-      </a>
+      </Link>
     </div>
   );
 }

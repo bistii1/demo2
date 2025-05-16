@@ -1,6 +1,7 @@
 import { IncomingForm, File as FormidableBaseFile, Files } from 'formidable';
 import fs from 'fs/promises';
 import { MongoClient } from 'mongodb';
+import type { NextApiRequest, NextApiResponse } from 'next';
 
 // Ensure bodyParser is disabled for file uploads
 export const config = {
@@ -24,7 +25,7 @@ async function connectToDB() {
   return client.db('pdfUploader');
 }
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
