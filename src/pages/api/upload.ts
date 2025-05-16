@@ -1,8 +1,7 @@
-// pages/api/upload.ts
 import { IncomingForm, File as FormidableBaseFile, Files } from 'formidable';
 import fs from 'fs/promises';
-import { MongoClient } from 'mongodb';
 import type { NextApiRequest, NextApiResponse } from 'next';
+import clientPromise from '@/lib/mongodb';
 
 export const config = {
   api: {
@@ -14,14 +13,6 @@ interface FormidableFile extends FormidableBaseFile {
   filepath: string;
   originalFilename: string | null;
   mimetype: string | null;
-}
-
-const MONGODB_URI = process.env.MONGODB_URI || '';
-
-async function connectToDB() {
-  const client = new MongoClient(MONGODB_URI);
-  await client.connect();
-  return client.db('pdfUploader');
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -44,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     const guidelinesFile = getFile(files.guidelines);
-    const proposalFile = getFile(files.proposal); // corrected field name
+    const proposalFile = getFile(files.proposal); // NOTE: updated to match frontend
 
     if (!guidelinesFile || !proposalFile) {
       return res.status(400).json({ message: 'Both files are required' });
@@ -54,7 +45,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const guidelinesBuffer = await fs.readFile(guidelinesFile.filepath);
       const proposalBuffer = await fs.readFile(proposalFile.filepath);
 
-      const db = await connectToDB();
+      const client = await clientPromise;
+      const db = client.db('pdfUploader');
       const collection = db.collection('uploads');
 
       await collection.insertOne({
@@ -64,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           contentType: guidelinesFile.mimetype,
           data: guidelinesBuffer,
         },
-        proposal: {
+        draft: {
           filename: proposalFile.originalFilename,
           contentType: proposalFile.mimetype,
           data: proposalBuffer,
