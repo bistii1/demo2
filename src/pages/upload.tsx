@@ -72,7 +72,11 @@ export default function Upload() {
       <main className="flex flex-col items-center justify-center p-8">
         <h1 className="text-2xl font-bold mb-8">Upload your PDF files</h1>
 
-        <form onSubmit={handleSubmit} className="flex gap-10 mb-6">
+        <form
+          id="upload-form"
+          onSubmit={handleSubmit}
+          className="flex gap-10 mb-6"
+        >
           {/* Guidelines Upload */}
           <div className="w-64">
             <label className="block mb-2 font-medium text-gray-800">
@@ -112,15 +116,14 @@ export default function Upload() {
               />
             )}
           </div>
-        </form>
 
-        <button
-          type="submit"
-          form="upload-form"
-          className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
-        >
-          Submit
-        </button>
+          <button
+            type="submit"
+            className="self-end bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+          >
+            Submit
+          </button>
+        </form>
 
         {uploadSuccess && (
           <p className="text-green-600 mt-4 font-semibold">Upload successful! 🎉</p>
