@@ -10,7 +10,7 @@ export default function Upload() {
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement> | MouseEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setUploadSuccess(false);
     setError('');
@@ -23,6 +23,7 @@ export default function Upload() {
     const formData = new FormData();
     formData.append('guidelines', guidelines);
     formData.append('draft', proposal);
+    formData.append('userEmail', user?.email || 'anonymous');
 
     try {
       const res = await fetch('/api/upload', {
@@ -30,7 +31,11 @@ export default function Upload() {
         body: formData,
       });
 
-      if (!res.ok) throw new Error('Upload failed');
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Upload failed: ${text}`);
+      }
+
       setUploadSuccess(true);
       setGuidelines(null);
       setProposal(null);
@@ -110,7 +115,8 @@ export default function Upload() {
         </form>
 
         <button
-          onClick={(e) => handleSubmit(e as unknown as FormEvent<HTMLFormElement>)}
+          type="submit"
+          form="upload-form"
           className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
         >
           Submit
