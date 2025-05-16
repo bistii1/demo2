@@ -5,86 +5,81 @@ import { useRouter } from 'next/router';
 
 export default function Upload() {
   const { user } = useUser();
-  const router = useRouter();
 
   const [guidelines, setGuidelines] = useState<File | null>(null);
   const [proposal, setProposal] = useState<File | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); // prevent page reload or redirect
+
     if (!guidelines || !proposal) return alert("Please upload both PDFs.");
 
     const formData = new FormData();
     formData.append('guidelines', guidelines);
     formData.append('proposal', proposal);
 
-    await fetch('/api/upload', {
-      method: 'POST',
-      body: formData,
-    });
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
 
-    router.push('/pastuploads');
+      if (!res.ok) throw new Error("Upload failed");
+
+      setUploadSuccess(true);
+    } catch (err) {
+      alert("Something went wrong while uploading.");
+      console.error(err);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-blue-900">
+    <div className="min-h-screen bg-white text-blue-900">
       {/* Navbar */}
-      <nav className="flex justify-between items-center px-6 py-4 bg-white shadow-sm">
-        <Link href="/" className="text-xl font-semibold">Home</Link>
+      <nav className="flex justify-between items-center p-4 shadow-md">
+        <Link href="/" className="text-lg font-semibold">Home</Link>
         <div className="space-x-4">
-          <Link href="/pastuploads" className="hover:underline">Past Uploads</Link>
+          <Link href="/pastuploads">Past Uploads</Link>
           {user && (
             <Link href="/api/auth/logout" legacyBehavior>
-              <a className="text-red-600 font-semibold hover:underline">Sign Out</a>
+              <a className="text-red-600 font-semibold">Sign Out</a>
             </Link>
           )}
         </div>
       </nav>
 
       {/* Upload Section */}
-      <main className="flex flex-col items-center justify-center p-8">
-        <div className="bg-white shadow-md rounded-xl p-8 w-full max-w-4xl">
-          <h1 className="text-3xl font-bold mb-6 text-center">Upload Your PDF Files</h1>
+      <form onSubmit={handleSubmit} className="flex flex-col items-center justify-center p-8">
+        <h1 className="text-2xl font-bold mb-8">Upload your PDF files</h1>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Guidelines */}
-            <div>
-              <label className="block text-lg font-medium mb-2">Proposal Guidelines (PDF)</label>
-              <input
-                type="file"
-                accept="application/pdf"
-                onChange={(e) => setGuidelines(e.target.files?.[0] || null)}
-                className="w-full p-2 border border-gray-300 rounded"
-              />
-              {guidelines && (
-                <embed src={URL.createObjectURL(guidelines)} className="mt-4 w-full h-48 border rounded" />
-              )}
-            </div>
-
-            {/* Proposal */}
-            <div>
-              <label className="block text-lg font-medium mb-2">Draft Proposal (PDF)</label>
-              <input
-                type="file"
-                accept="application/pdf"
-                onChange={(e) => setProposal(e.target.files?.[0] || null)}
-                className="w-full p-2 border border-gray-300 rounded"
-              />
-              {proposal && (
-                <embed src={URL.createObjectURL(proposal)} className="mt-4 w-full h-48 border rounded" />
-              )}
-            </div>
+        <div className="flex gap-10 mb-6">
+          {/* Guidelines */}
+          <div className="w-64">
+            <label className="block mb-2 font-medium">Research Proposal Guidelines (PDF)</label>
+            <input type="file" accept="application/pdf" onChange={(e) => setGuidelines(e.target.files?.[0] || null)} />
+            {guidelines && <embed src={URL.createObjectURL(guidelines)} className="mt-2 w-full h-40" />}
           </div>
 
-          <div className="mt-8 flex justify-center">
-            <button
-              onClick={handleSubmit}
-              className="bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 transition"
-            >
-              Submit PDFs
-            </button>
+          {/* Proposal */}
+          <div className="w-64">
+            <label className="block mb-2 font-medium">Draft Proposal (PDF)</label>
+            <input type="file" accept="application/pdf" onChange={(e) => setProposal(e.target.files?.[0] || null)} />
+            {proposal && <embed src={URL.createObjectURL(proposal)} className="mt-2 w-full h-40" />}
           </div>
         </div>
-      </main>
+
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+        >
+          Submit
+        </button>
+
+        {uploadSuccess && (
+          <p className="text-green-600 mt-4 font-semibold">Upload successful! 🎉</p>
+        )}
+      </form>
     </div>
   );
 }
