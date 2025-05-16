@@ -14,8 +14,13 @@ export default function Upload() {
   const [file2, setFile2] = useState<File | null>(null);
   const [preview1, setPreview1] = useState<string | null>(null);
   const [preview2, setPreview2] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, setFile: any, setPreview: any) => {
+  const handleFileChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+    setFile: React.Dispatch<React.SetStateAction<File | null>>,
+    setPreview: React.Dispatch<React.SetStateAction<string | null>>
+  ) => {
     const selectedFile = event.target.files?.[0] || null;
     setFile(selectedFile);
     if (selectedFile) {
@@ -25,7 +30,7 @@ export default function Upload() {
     }
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!file1 || !file2) return;
 
@@ -40,13 +45,13 @@ export default function Upload() {
     });
 
     if (res.ok) {
-      alert("Upload successful!");
+      setSuccessMessage("Your PDFs were uploaded successfully!");
       setFile1(null);
       setFile2(null);
       setPreview1(null);
       setPreview2(null);
     } else {
-      alert("Upload failed.");
+      setSuccessMessage("Upload failed. Please try again.");
     }
   };
 
@@ -63,6 +68,13 @@ export default function Upload() {
 
       <div className="max-w-6xl mx-auto mt-10 bg-white p-8 rounded-xl shadow">
         <h1 className="text-3xl font-bold text-center text-blue-900 mb-10">Upload Your PDF Files</h1>
+        
+        {successMessage && (
+          <div className="mb-6 text-center text-green-600 font-medium">
+            {successMessage}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
             <div>
