@@ -10,7 +10,7 @@ export default function Upload() {
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); // prevent page reload or redirect
+    e.preventDefault(); // ✅ prevent page refresh or navigation
 
     if (!guidelines || !proposal) return alert("Please upload both PDFs.");
 
@@ -49,36 +49,38 @@ export default function Upload() {
       </nav>
 
       {/* Upload Section */}
-      <form onSubmit={handleSubmit} className="flex flex-col items-center justify-center p-8">
+      <main className="flex flex-col items-center justify-center p-8">
         <h1 className="text-2xl font-bold mb-8">Upload your PDF files</h1>
 
-        <div className="flex gap-10 mb-6">
-          {/* Guidelines */}
-          <div className="w-64">
-            <label className="block mb-2 font-medium">Research Proposal Guidelines (PDF)</label>
-            <input type="file" accept="application/pdf" onChange={(e) => setGuidelines(e.target.files?.[0] || null)} />
-            {guidelines && <embed src={URL.createObjectURL(guidelines)} className="mt-2 w-full h-40" />}
+        <form onSubmit={handleSubmit}>
+          <div className="flex gap-10 mb-6">
+            {/* Guidelines */}
+            <div className="w-64">
+              <label className="block mb-2 font-medium">Research Proposal Guidelines (PDF)</label>
+              <input type="file" accept="application/pdf" onChange={(e) => setGuidelines(e.target.files?.[0] || null)} />
+              {guidelines && <embed src={URL.createObjectURL(guidelines)} className="mt-2 w-full h-40" />}
+            </div>
+
+            {/* Proposal */}
+            <div className="w-64">
+              <label className="block mb-2 font-medium">Draft Proposal (PDF)</label>
+              <input type="file" accept="application/pdf" onChange={(e) => setProposal(e.target.files?.[0] || null)} />
+              {proposal && <embed src={URL.createObjectURL(proposal)} className="mt-2 w-full h-40" />}
+            </div>
           </div>
 
-          {/* Proposal */}
-          <div className="w-64">
-            <label className="block mb-2 font-medium">Draft Proposal (PDF)</label>
-            <input type="file" accept="application/pdf" onChange={(e) => setProposal(e.target.files?.[0] || null)} />
-            {proposal && <embed src={URL.createObjectURL(proposal)} className="mt-2 w-full h-40" />}
-          </div>
-        </div>
+          <button
+            type="submit"
+            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+          >
+            Submit
+          </button>
 
-        <button
-          type="submit"
-          className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
-        >
-          Submit
-        </button>
-
-        {uploadSuccess && (
-          <p className="text-green-600 mt-4 font-semibold">Upload successful! 🎉</p>
-        )}
-      </form>
+          {uploadSuccess && (
+            <p className="text-green-600 mt-4 font-semibold">Upload successful! 🎉</p>
+          )}
+        </form>
+      </main>
     </div>
   );
 }
