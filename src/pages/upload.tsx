@@ -1,87 +1,119 @@
+// pages/upload.tsx
 import { useState } from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
+import { Document, Page, pdfjs } from "react-pdf";
 import Link from "next/link";
+import "react-pdf/dist/esm/Page/AnnotationLayer.css";
+import "react-pdf/dist/esm/Page/TextLayer.css";
 
-export default function UploadPage() {
+pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+
+export default function Upload() {
   const { user } = useUser();
-  const [guidelinesFile, setGuidelinesFile] = useState<File | null>(null);
-  const [draftFile, setDraftFile] = useState<File | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [file1, setFile1] = useState<File | null>(null);
+  const [file2, setFile2] = useState<File | null>(null);
+  const [preview1, setPreview1] = useState<string | null>(null);
+  const [preview2, setPreview2] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!guidelinesFile || !draftFile) return;
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>, setFile: any, setPreview: any) => {
+    const selectedFile = event.target.files?.[0] || null;
+    setFile(selectedFile);
+    if (selectedFile) {
+      setPreview(URL.createObjectURL(selectedFile));
+    } else {
+      setPreview(null);
+    }
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!file1 || !file2) return;
 
     const formData = new FormData();
-    formData.append("guidelines", guidelinesFile);
-    formData.append("draft", draftFile);
-    if (user?.email) formData.append("email", user.email);
+    formData.append("file1", file1);
+    formData.append("file2", file2);
+    if (user?.email) formData.append("userEmail", user.email);
 
     const res = await fetch("/api/upload", {
       method: "POST",
       body: formData,
     });
 
-    if (res.ok) setSuccess(true);
+    if (res.ok) {
+      alert("Upload successful!");
+      setFile1(null);
+      setFile2(null);
+      setPreview1(null);
+      setPreview2(null);
+    } else {
+      alert("Upload failed.");
+    }
   };
 
   return (
-    <div className="min-h-screen bg-white text-blue-900">
-      {/* Nav Bar */}
+    <div className="min-h-screen bg-gray-100">
       <nav className="flex justify-between items-center p-4 shadow-md bg-white">
         <Link href="/" className="text-lg font-semibold text-blue-900">Home</Link>
         {user && (
-          <a href="/api/auth/logout" className="text-red-600 font-semibold">Sign Out</a>
+          <Link href="/api/auth/logout" legacyBehavior>
+            <a className="text-red-600 font-semibold">Sign Out</a>
+          </Link>
         )}
       </nav>
 
-      {/* Upload Section */}
-      <main className="flex flex-col items-center justify-center p-8">
-        <h1 className="text-2xl font-bold mb-8">Upload your PDF files</h1>
-
-        <form onSubmit={handleSubmit} className="flex flex-col items-center">
-          <div className="flex gap-10 mb-6">
-            {/* Guidelines */}
-            <div className="w-64">
-              <label className="block mb-2 font-medium text-gray-900">Research Proposal Guidelines (PDF)</label>
+      <div className="max-w-6xl mx-auto mt-10 bg-white p-8 rounded-xl shadow">
+        <h1 className="text-3xl font-bold text-center text-blue-900 mb-10">Upload Your PDF Files</h1>
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+            <div>
+              <label className="block text-xl font-semibold text-blue-900 mb-2">
+                Proposal Guidelines (PDF)
+              </label>
               <input
                 type="file"
                 accept="application/pdf"
-                className="text-gray-900"
-                onChange={(e) => setGuidelinesFile(e.target.files?.[0] || null)}
+                onChange={(e) => handleFileChange(e, setFile1, setPreview1)}
+                className="w-full border border-gray-300 rounded px-4 py-2 text-gray-800"
               />
-              {guidelinesFile && (
-                <embed src={URL.createObjectURL(guidelinesFile)} className="mt-2 w-full h-40 border" />
+              {preview1 && (
+                <div className="mt-4 border-2 border-gray-700 rounded overflow-hidden">
+                  <Document file={preview1}>
+                    <Page pageNumber={1} width={400} />
+                  </Document>
+                </div>
               )}
             </div>
 
-            {/* Draft */}
-            <div className="w-64">
-              <label className="block mb-2 font-medium text-gray-900">Draft Proposal (PDF)</label>
+            <div>
+              <label className="block text-xl font-semibold text-blue-900 mb-2">
+                Draft Proposal (PDF)
+              </label>
               <input
                 type="file"
                 accept="application/pdf"
-                className="text-gray-900"
-                onChange={(e) => setDraftFile(e.target.files?.[0] || null)}
+                onChange={(e) => handleFileChange(e, setFile2, setPreview2)}
+                className="w-full border border-gray-300 rounded px-4 py-2 text-gray-800"
               />
-              {draftFile && (
-                <embed src={URL.createObjectURL(draftFile)} className="mt-2 w-full h-40 border" />
+              {preview2 && (
+                <div className="mt-4 border-2 border-gray-700 rounded overflow-hidden">
+                  <Document file={preview2}>
+                    <Page pageNumber={1} width={400} />
+                  </Document>
+                </div>
               )}
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
-          >
-            Submit
-          </button>
-
-          {success && (
-            <p className="text-green-600 mt-4 font-semibold">Upload successful! 🎉</p>
-          )}
+          <div className="text-center mt-10">
+            <button
+              type="submit"
+              className="bg-blue-600 text-white font-semibold px-6 py-3 rounded hover:bg-blue-700 transition"
+            >
+              Submit PDFs
+            </button>
+          </div>
         </form>
-      </main>
+      </div>
     </div>
   );
 }
