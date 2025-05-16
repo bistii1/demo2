@@ -1,16 +1,15 @@
+// pages/api/upload.ts
 import { IncomingForm, File as FormidableBaseFile, Files } from 'formidable';
 import fs from 'fs/promises';
 import { MongoClient } from 'mongodb';
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-// Ensure bodyParser is disabled for file uploads
 export const config = {
   api: {
     bodyParser: false,
   },
 };
 
-// Extend Formidable's File type with required fields
 interface FormidableFile extends FormidableBaseFile {
   filepath: string;
   originalFilename: string | null;
@@ -45,15 +44,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     const guidelinesFile = getFile(files.guidelines);
-    const draftFile = getFile(files.draft);
+    const proposalFile = getFile(files.proposal); // corrected field name
 
-    if (!guidelinesFile || !draftFile) {
+    if (!guidelinesFile || !proposalFile) {
       return res.status(400).json({ message: 'Both files are required' });
     }
 
     try {
       const guidelinesBuffer = await fs.readFile(guidelinesFile.filepath);
-      const draftBuffer = await fs.readFile(draftFile.filepath);
+      const proposalBuffer = await fs.readFile(proposalFile.filepath);
 
       const db = await connectToDB();
       const collection = db.collection('uploads');
@@ -65,10 +64,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           contentType: guidelinesFile.mimetype,
           data: guidelinesBuffer,
         },
-        draft: {
-          filename: draftFile.originalFilename,
-          contentType: draftFile.mimetype,
-          data: draftBuffer,
+        proposal: {
+          filename: proposalFile.originalFilename,
+          contentType: proposalFile.mimetype,
+          data: proposalBuffer,
         },
       });
 
