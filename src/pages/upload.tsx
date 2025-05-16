@@ -1,70 +1,70 @@
 import { useState } from 'react';
+import { useUser } from '@auth0/nextjs-auth0/client';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 
-export default function UploadPage() {
+export default function Upload() {
+  const { user } = useUser();
+  const router = useRouter();
+
   const [guidelines, setGuidelines] = useState<File | null>(null);
-  const [draft, setDraft] = useState<File | null>(null);
+  const [proposal, setProposal] = useState<File | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!guidelines || !draft) {
-      alert("Please upload both files.");
-      return;
-    }
+  const handleSubmit = async () => {
+    if (!guidelines || !proposal) return alert("Please upload both PDFs.");
 
     const formData = new FormData();
-    formData.append("guidelines", guidelines);
-    formData.append("draft", draft);
+    formData.append('guidelines', guidelines);
+    formData.append('proposal', proposal);
 
-    const res = await fetch("/api/upload", {
-      method: "POST",
+    await fetch('/api/upload', {
+      method: 'POST',
       body: formData,
     });
 
-    const data = await res.json();
-    alert(data.message);
+    router.push('/pastuploads');
   };
 
   return (
-    <div className="min-h-screen bg-blue-900 text-white flex flex-col items-center justify-center space-y-6 p-8">
-      <h1 className="text-3xl font-bold mb-4">Upload your PDF files</h1>
-
-      <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
-        <div>
-          <label className="block mb-1">Research Proposal Guidelines (PDF)</label>
-          <input
-            type="file"
-            accept="application/pdf"
-            onChange={(e) => setGuidelines(e.target.files?.[0] || null)}
-            className="text-black"
-          />
+    <div className="min-h-screen bg-white text-blue-900">
+      {/* Navbar */}
+      <nav className="flex justify-between items-center p-4 shadow-md">
+        <Link href="/" className="text-lg font-semibold">Home</Link>
+        <div className="space-x-4">
+          <Link href="/pastuploads">Past Uploads</Link>
+          {user && (
+            <a href="/api/auth/logout" className="text-red-600 font-semibold">Sign Out</a>
+          )}
         </div>
+      </nav>
 
-        <div>
-          <label className="block mb-1">Draft Proposal (PDF)</label>
-          <input
-            type="file"
-            accept="application/pdf"
-            onChange={(e) => setDraft(e.target.files?.[0] || null)}
-            className="text-black"
-          />
+      {/* Upload Section */}
+      <main className="flex flex-col items-center justify-center p-8">
+        <h1 className="text-2xl font-bold mb-8">Upload your PDF files</h1>
+
+        <div className="flex gap-10 mb-6">
+          {/* Guidelines */}
+          <div className="w-64">
+            <label className="block mb-2 font-medium">Research Proposal Guidelines (PDF)</label>
+            <input type="file" accept="application/pdf" onChange={(e) => setGuidelines(e.target.files?.[0] || null)} />
+            {guidelines && <embed src={URL.createObjectURL(guidelines)} className="mt-2 w-full h-40" />}
+          </div>
+
+          {/* Proposal */}
+          <div className="w-64">
+            <label className="block mb-2 font-medium">Draft Proposal (PDF)</label>
+            <input type="file" accept="application/pdf" onChange={(e) => setProposal(e.target.files?.[0] || null)} />
+            {proposal && <embed src={URL.createObjectURL(proposal)} className="mt-2 w-full h-40" />}
+          </div>
         </div>
 
         <button
-          type="submit"
-          className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition"
+          onClick={handleSubmit}
+          className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
         >
-          Upload
+          Submit
         </button>
-      </form>
-
-      <Link
-        href="/api/auth/logout?returnTo=/"
-        className="mt-6 bg-red-600 px-4 py-2 rounded-lg shadow hover:bg-red-700 transition"
-      >
-        Home (Sign Out)
-      </Link>
+      </main>
     </div>
   );
 }
