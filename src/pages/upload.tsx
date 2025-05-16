@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, FormEvent, ChangeEvent } from 'react';
 import { useUser } from '@auth0/nextjs-auth0/client';
 import Link from 'next/link';
 
@@ -10,7 +10,7 @@ export default function Upload() {
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement> | MouseEvent) => {
     e.preventDefault();
     setUploadSuccess(false);
     setError('');
@@ -40,25 +40,27 @@ export default function Upload() {
     }
   };
 
-  const handleFileChange = (setter: (f: File | null) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setter(e.target.files?.[0] || null);
-  };
+  const handleFileChange =
+    (setter: (file: File | null) => void) =>
+    (e: ChangeEvent<HTMLInputElement>) => {
+      setter(e.target.files?.[0] || null);
+    };
 
   return (
     <div className="min-h-screen bg-white text-blue-900">
       {/* Navbar */}
       <nav className="flex justify-between items-center p-4 shadow-md">
-        <Link href="/" className="text-lg font-semibold">Home</Link>
-        <div className="space-x-4">
-          {user && (
-            <button
-              onClick={() => (window.location.href = "/api/auth/logout")}
-              className="text-red-600 font-semibold"
-            >
-              Sign Out
-            </button>
-          )}
-        </div>
+        <Link href="/" className="text-lg font-semibold">
+          Home
+        </Link>
+        {user && (
+          <button
+            onClick={() => (window.location.href = '/api/auth/logout')}
+            className="text-red-600 font-semibold"
+          >
+            Sign Out
+          </button>
+        )}
       </nav>
 
       {/* Upload Section */}
@@ -108,7 +110,7 @@ export default function Upload() {
         </form>
 
         <button
-          onClick={handleSubmit as any}
+          onClick={(e) => handleSubmit(e as unknown as FormEvent<HTMLFormElement>)}
           className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
         >
           Submit
