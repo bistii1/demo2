@@ -33,7 +33,9 @@ export default function Upload() {
         <div className="space-x-4">
           <Link href="/pastuploads">Past Uploads</Link>
           {user && (
-            <a href="/api/auth/logout" className="text-red-600 font-semibold">Sign Out</a>
+            <Link href="/api/auth/logout" passHref legacyBehavior>
+              <a className="text-red-600 font-semibold">Sign Out</a>
+            </Link>
           )}
         </div>
       </nav>
