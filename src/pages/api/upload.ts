@@ -1,13 +1,20 @@
-import { IncomingForm, File as FormidableFile, Files } from 'formidable';
+import { IncomingForm, File as FormidableBaseFile, Files } from 'formidable';
 import fs from 'fs/promises';
 import { MongoClient } from 'mongodb';
-import type { NextApiRequest, NextApiResponse } from 'next';
 
+// Ensure bodyParser is disabled for file uploads
 export const config = {
   api: {
     bodyParser: false,
   },
 };
+
+// Extend Formidable's File type with required fields
+interface FormidableFile extends FormidableBaseFile {
+  filepath: string;
+  originalFilename: string | null;
+  mimetype: string | null;
+}
 
 const MONGODB_URI = process.env.MONGODB_URI || '';
 
@@ -17,7 +24,7 @@ async function connectToDB() {
   return client.db('pdfUploader');
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
@@ -30,9 +37,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(500).json({ message: 'File parsing error' });
     }
 
-    const getFile = (f: FormidableFile | FormidableFile[] | undefined): FormidableFile | null => {
+    const getFile = (f: FormidableBaseFile | FormidableBaseFile[] | undefined): FormidableFile | null => {
       if (!f) return null;
-      return Array.isArray(f) ? f[0] : f;
+      const file = Array.isArray(f) ? f[0] : f;
+      return file as FormidableFile;
     };
 
     const guidelinesFile = getFile(files.guidelines);
