@@ -1,55 +1,147 @@
-import { useEffect, useState } from 'react';
+import { useState, FormEvent, ChangeEvent } from 'react';
+import { useUser } from '@auth0/nextjs-auth0/client';
+import Link from 'next/link';
 
-export default function TextPreview() {
-  const [draftText, setDraftText] = useState('');
-  const [guidelinesText, setGuidelinesText] = useState('');
+export default function Upload() {
+  const { user } = useUser();
 
-  useEffect(() => {
-    const fetchParsedText = async () => {
-      try {
-        const res = await fetch('/api/parsed-text');
-        const json = await res.json();
+  const [guidelines, setGuidelines] = useState<File | null>(null);
+  const [proposal, setProposal] = useState<File | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [error, setError] = useState('');
 
-        console.log('Parsed text response:', json); // ✅ Log response to debug
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setUploadSuccess(false);
+    setError('');
 
-        // Support both direct and nested formats
-        const draft = json.draft || json?.data?.draft || '';
-        const guidelines = json.guidelines || json?.data?.guidelines || '';
+    if (!guidelines || !proposal) {
+      setError('Please upload both PDFs.');
+      return;
+    }
 
-        setDraftText(draft);
-        setGuidelinesText(guidelines);
-      } catch (error) {
-        console.error('Failed to fetch parsed text', error);
+    const formData = new FormData();
+    formData.append('guidelines', guidelines);
+    formData.append('draft', proposal);
+    formData.append('userEmail', user?.email || 'anonymous');
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Upload failed: ${text}`);
       }
+
+      setUploadSuccess(true);
+      setGuidelines(null);
+      setProposal(null);
+    } catch (err) {
+      setError('Something went wrong while uploading.');
+      console.error(err);
+    }
+  };
+
+  const handleFileChange =
+    (setter: (file: File | null) => void) =>
+    (e: ChangeEvent<HTMLInputElement>) => {
+      setter(e.target.files?.[0] || null);
     };
 
-    fetchParsedText();
-  }, []);
-
   return (
-    <div className="min-h-screen bg-white text-black px-6 py-8">
-      <h1 className="text-3xl font-bold mb-6">Text Extract Preview</h1>
+    <div className="min-h-screen bg-white text-blue-900">
+      {/* Navbar */}
+      <nav className="flex justify-between items-center p-4 shadow-md">
+        <Link href="/" className="text-lg font-semibold">
+          Home
+        </Link>
+        {user && (
+          <button
+            onClick={() => (window.location.href = '/api/auth/logout')}
+            className="text-red-600 font-semibold"
+          >
+            Sign Out
+          </button>
+        )}
+      </nav>
 
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-blue-700 mb-2">Draft Text</h2>
-        <div className="bg-gray-100 border border-black rounded p-4 whitespace-pre-wrap h-60 overflow-y-auto">
-          {draftText || 'No draft text available.'}
-        </div>
-      </div>
+      {/* Upload Section */}
+      <main className="flex flex-col items-center justify-center p-8">
+        <h1 className="text-2xl font-bold mb-8">Upload your PDF files</h1>
 
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-green-700 mb-2">Guidelines Text</h2>
-        <div className="bg-gray-100 border border-black rounded p-4 whitespace-pre-wrap h-60 overflow-y-auto">
-          {guidelinesText || 'No guidelines text available.'}
-        </div>
-      </div>
+        <form
+          id="upload-form"
+          onSubmit={handleSubmit}
+          className="flex gap-10 mb-6"
+        >
+          {/* Guidelines Upload */}
+          <div className="w-64">
+            <label className="block mb-2 font-medium text-gray-800">
+              Research Proposal Guidelines (PDF)
+            </label>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={handleFileChange(setGuidelines)}
+              className="border border-gray-400 rounded px-2 py-1 w-full text-gray-800"
+            />
+            {guidelines && (
+              <embed
+                src={URL.createObjectURL(guidelines)}
+                type="application/pdf"
+                className="mt-2 w-full h-40 border rounded"
+              />
+            )}
+          </div>
 
-      <button
-        onClick={() => (window.location.href = '/upload')}
-        className="mt-4 px-6 py-2 bg-blue-600 text-white font-semibold rounded hover:bg-blue-700"
-      >
-        ← Back to Uploads
-      </button>
+          {/* Proposal Upload */}
+          <div className="w-64">
+            <label className="block mb-2 font-medium text-gray-800">
+              Draft Proposal (PDF)
+            </label>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={handleFileChange(setProposal)}
+              className="border border-gray-400 rounded px-2 py-1 w-full text-gray-800"
+            />
+            {proposal && (
+              <embed
+                src={URL.createObjectURL(proposal)}
+                type="application/pdf"
+                className="mt-2 w-full h-40 border rounded"
+              />
+            )}
+          </div>
+
+          <button
+            type="submit"
+            className="self-end bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+          >
+            Submit
+          </button>
+        </form>
+
+        {/* Upload success / error messages */}
+        {uploadSuccess && (
+          <>
+            <p className="text-green-600 mt-4 font-semibold">
+              Upload successful! 🎉
+            </p>
+            <Link href="/textpreview" className="mt-4 inline-block">
+              <button className="bg-black text-white px-6 py-2 rounded hover:bg-gray-800">
+                View Text Preview
+              </button>
+            </Link>
+          </>
+        )}
+        {error && (
+          <p className="text-red-600 mt-4 font-semibold">{error}</p>
+        )}
+      </main>
     </div>
   );
 }
