@@ -3,8 +3,7 @@ import fs from 'fs/promises';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import clientPromise from '@/lib/mongodb';
 
-// @ts-ignore
-const pdfParse = require('pdf-parse');
+import pdfParse from 'pdf-parse'; // ✅ Use this instead of require()
 
 export const config = {
   api: {
