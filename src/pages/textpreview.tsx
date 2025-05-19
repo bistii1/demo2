@@ -30,12 +30,12 @@ export default function TextPreview() {
 
       <div>
         <h2 className="text-xl font-semibold text-blue-700">Draft Text</h2>
-        <pre className="bg-gray-100 p-4 rounded whitespace-pre-wrap">{draftText}</pre>
+        <pre className="bg-black-100 p-4 rounded whitespace-pre-wrap">{draftText}</pre>
       </div>
 
       <div>
         <h2 className="text-xl font-semibold text-green-700">Guidelines Text</h2>
-        <pre className="bg-gray-100 p-4 rounded whitespace-pre-wrap">{guidelinesText}</pre>
+        <pre className="bg-black-100 p-4 rounded whitespace-pre-wrap">{guidelinesText}</pre>
       </div>
     </div>
   );
