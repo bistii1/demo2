@@ -8,9 +8,16 @@ export default function TextPreview() {
     const fetchParsedText = async () => {
       try {
         const res = await fetch('/api/parsed-text');
-        const data = await res.json();
-        setDraftText(data?.draft || '');
-        setGuidelinesText(data?.guidelines || '');
+        const json = await res.json();
+
+        console.log('Parsed text response:', json); // ✅ Log response to debug
+
+        // Support both direct and nested formats
+        const draft = json.draft || json?.data?.draft || '';
+        const guidelines = json.guidelines || json?.data?.guidelines || '';
+
+        setDraftText(draft);
+        setGuidelinesText(guidelines);
       } catch (error) {
         console.error('Failed to fetch parsed text', error);
       }
@@ -25,14 +32,14 @@ export default function TextPreview() {
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-blue-700 mb-2">Draft Text</h2>
-        <div className="bg-gray-100 border border-black rounded p-4 whitespace-pre-wrap">
+        <div className="bg-gray-100 border border-black rounded p-4 whitespace-pre-wrap h-60 overflow-y-auto">
           {draftText || 'No draft text available.'}
         </div>
       </div>
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-green-700 mb-2">Guidelines Text</h2>
-        <div className="bg-gray-100 border border-black rounded p-4 whitespace-pre-wrap">
+        <div className="bg-gray-100 border border-black rounded p-4 whitespace-pre-wrap h-60 overflow-y-auto">
           {guidelinesText || 'No guidelines text available.'}
         </div>
       </div>
