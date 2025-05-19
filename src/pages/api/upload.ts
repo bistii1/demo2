@@ -50,6 +50,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const guidelinesText = (await pdfParse(guidelinesBuffer)).text;
       const draftText = (await pdfParse(draftBuffer)).text;
 
+      // ✅ Log the first 200 characters of extracted text
+      console.log('GUIDELINES TEXT (preview):', guidelinesText.slice(0, 200));
+      console.log('DRAFT TEXT (preview):', draftText.slice(0, 200));
+
       const client = await clientPromise;
       const db = client.db('pdfUploader');
       const collection = db.collection('uploads');
