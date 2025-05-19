@@ -1,9 +1,8 @@
 import { IncomingForm, File as FormidableBaseFile, Files } from 'formidable';
 import fs from 'fs/promises';
+import pdfParse from 'pdf-parse';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import clientPromise from '@/lib/mongodb';
-
-import pdfParse from 'pdf-parse'; // ✅ Use this instead of require()
 
 export const config = {
   api: {
@@ -37,24 +36,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     const guidelinesFile = getFile(files.guidelines);
-    const draftFile = getFile(files.draft); // match frontend field name
-    const userEmail = fields.userEmail?.toString() || 'anonymous';
+    const draftFile = getFile(files.draft);
 
     if (!guidelinesFile || !draftFile) {
       return res.status(400).json({ message: 'Both files are required' });
     }
 
     try {
-      const [guidelinesBuffer, draftBuffer] = await Promise.all([
-        fs.readFile(guidelinesFile.filepath),
-        fs.readFile(draftFile.filepath),
-      ]);
+      const guidelinesBuffer = await fs.readFile(guidelinesFile.filepath);
+      const draftBuffer = await fs.readFile(draftFile.filepath);
 
-      // Extract text from both PDFs
-      const [guidelinesParsed, draftParsed] = await Promise.all([
-        pdfParse(guidelinesBuffer),
-        pdfParse(draftBuffer),
-      ]);
+      // Extract text using pdf-parse
+      const guidelinesText = (await pdfParse(guidelinesBuffer)).text;
+      const draftText = (await pdfParse(draftBuffer)).text;
 
       const client = await clientPromise;
       const db = client.db('pdfUploader');
@@ -62,25 +56,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       await collection.insertOne({
         uploadedAt: new Date(),
-        userEmail,
+        userEmail: fields.userEmail || 'anonymous',
         guidelines: {
           filename: guidelinesFile.originalFilename,
           contentType: guidelinesFile.mimetype,
           data: guidelinesBuffer,
-          extractedText: guidelinesParsed.text,
+          parsedText: guidelinesText,
         },
         draft: {
           filename: draftFile.originalFilename,
           contentType: draftFile.mimetype,
           data: draftBuffer,
-          extractedText: draftParsed.text,
+          parsedText: draftText,
         },
       });
 
       res.status(200).json({ message: 'Upload and parsing successful!' });
     } catch (error) {
-      console.error('Processing error:', error);
-      res.status(500).json({ message: 'Server error during upload' });
+      console.error('Upload handler error:', error);
+      res.status(500).json({ message: 'Internal server error' });
     }
   });
 }
