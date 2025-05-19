@@ -15,7 +15,7 @@ export default function TextPreview() {
 
   return (
     <div style={{ backgroundColor: 'white', minHeight: '100vh', padding: '2rem' }}>
-      <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '2rem' }}>Text Extract Preview</h1>
+      <h1 style={{ color: 'black', fontSize: '2rem', fontWeight: 'bold', marginBottom: '2rem' }}>Text Extract Preview</h1>
 
       <div style={{ marginBottom: '2rem' }}>
         <h2 style={{ color: 'black', fontWeight: 'bold' }}>Draft Text</h2>
