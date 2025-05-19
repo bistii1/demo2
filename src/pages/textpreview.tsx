@@ -1,41 +1,48 @@
+// pages/textpreview.tsx
 import { useEffect, useState } from 'react';
 
 export default function TextPreview() {
-  const [draftText, setDraftText] = useState('');
-  const [guidelinesText, setGuidelinesText] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [parsed, setParsed] = useState<{ draftText: string; guidelinesText: string } | null>(null);
 
   useEffect(() => {
     const fetchParsedText = async () => {
-      try {
-        const res = await fetch('/api/getParsedText');
-        const data = await res.json();
-        setDraftText(data.draftText);
-        setGuidelinesText(data.guidelinesText);
-      } catch (err) {
-        console.error('Error fetching parsed text:', err);
-      } finally {
-        setLoading(false);
-      }
+      const res = await fetch('/api/getParsedText');
+      const data = await res.json();
+      setParsed(data);
     };
-
     fetchParsedText();
   }, []);
 
-  if (loading) return <div className="p-4">Loading...</div>;
-
   return (
-    <div className="p-8 space-y-6">
-      <h1 className="text-2xl font-bold">Text Extract Preview</h1>
+    <div style={{ backgroundColor: 'white', minHeight: '100vh', padding: '2rem' }}>
+      <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '2rem' }}>Text Extract Preview</h1>
 
-      <div>
-        <h2 className="text-xl font-semibold text-blue-700">Draft Text</h2>
-        <pre className="bg-black-100 p-4 rounded whitespace-pre-wrap">{draftText}</pre>
+      <div style={{ marginBottom: '2rem' }}>
+        <h2 style={{ color: 'black', fontWeight: 'bold' }}>Draft Text</h2>
+        <div style={{
+          border: '2px solid black',
+          padding: '1rem',
+          backgroundColor: '#fff',
+          color: '#000',
+          whiteSpace: 'pre-wrap',
+          minHeight: '100px'
+        }}>
+          {parsed?.draftText || 'Loading...'}
+        </div>
       </div>
 
       <div>
-        <h2 className="text-xl font-semibold text-green-700">Guidelines Text</h2>
-        <pre className="bg-black-100 p-4 rounded whitespace-pre-wrap">{guidelinesText}</pre>
+        <h2 style={{ color: 'black', fontWeight: 'bold' }}>Guidelines Text</h2>
+        <div style={{
+          border: '2px solid black',
+          padding: '1rem',
+          backgroundColor: '#fff',
+          color: '#000',
+          whiteSpace: 'pre-wrap',
+          minHeight: '100px'
+        }}>
+          {parsed?.guidelinesText || 'Loading...'}
+        </div>
       </div>
     </div>
   );

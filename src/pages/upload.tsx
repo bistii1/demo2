@@ -125,8 +125,18 @@ export default function Upload() {
           </button>
         </form>
 
+        {/* Upload success / error messages */}
         {uploadSuccess && (
-          <p className="text-green-600 mt-4 font-semibold">Upload successful! 🎉</p>
+          <>
+            <p className="text-green-600 mt-4 font-semibold">
+              Upload successful! 🎉
+            </p>
+            <Link href="/textpreview" className="mt-4 inline-block">
+              <button className="bg-black text-white px-6 py-2 rounded hover:bg-gray-800">
+                View Text Preview
+              </button>
+            </Link>
+          </>
         )}
         {error && (
           <p className="text-red-600 mt-4 font-semibold">{error}</p>
