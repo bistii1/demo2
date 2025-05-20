@@ -9,10 +9,21 @@ interface Upload {
   createdAt: string;
 }
 
+interface BudgetItem {
+  role: string;
+  name: string;
+  effort: number;
+  salary: number;
+  fringe: number;
+  category: string;
+  notes: string;
+}
+
 export default function TextPreviewPage() {
   const { user } = useUser();
   const [latest, setLatest] = useState<Upload | null>(null);
   const [uploads, setUploads] = useState<Upload[]>([]);
+  const [budget, setBudget] = useState<BudgetItem[]>([]);
 
   useEffect(() => {
     async function fetchUploads() {
@@ -33,6 +44,25 @@ export default function TextPreviewPage() {
 
     fetchUploads();
   }, [user]);
+
+  const handleAddRow = () => {
+    setBudget([...budget, { role: '', name: '', effort: 0, salary: 0, fringe: 0, category: '', notes: '' }]);
+  };
+
+  const handleBudgetChange = <K extends keyof BudgetItem>(index: number, field: K, value: string) => {
+    const updated = [...budget];
+    if (field === 'effort' || field === 'salary' || field === 'fringe') {
+      updated[index][field] = Number(value) as BudgetItem[K];
+    } else {
+      updated[index][field] = value as BudgetItem[K];
+    }
+    setBudget(updated);
+  };
+
+  const total = budget.reduce(
+    (sum, item) => sum + (item.salary * item.effort / 100 + item.fringe),
+    0
+  );
 
   return (
     <div style={{ background: "#fff", color: "#000", minHeight: "100vh", padding: "2rem" }}>
@@ -77,8 +107,37 @@ export default function TextPreviewPage() {
           {/* Budget Table UI */}
           <div className="bg-white text-black p-6 border rounded mt-8">
             <h2 className="text-xl font-bold mb-4">Build Your Budget</h2>
-
-            <p className="text-sm text-gray-700 mb-4">Coming soon: interactive budget table that aligns with guideline constraints.</p>
+            <table className="w-full mb-4 border text-sm">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border px-2 py-1">Role</th>
+                  <th className="border px-2 py-1">Name</th>
+                  <th className="border px-2 py-1">% Effort</th>
+                  <th className="border px-2 py-1">Salary</th>
+                  <th className="border px-2 py-1">Fringe</th>
+                  <th className="border px-2 py-1">Category</th>
+                  <th className="border px-2 py-1">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {budget.map((item, idx) => (
+                  <tr key={idx}>
+                    {Object.entries(item).map(([key, value]) => (
+                      <td className="border px-2 py-1" key={key}>
+                        <input
+                          className="w-full border px-1 py-0.5"
+                          type={typeof value === 'number' ? 'number' : 'text'}
+                          value={value}
+                          onChange={(e) => handleBudgetChange(idx, key as keyof BudgetItem, e.target.value)}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <button onClick={handleAddRow} className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600 mb-2">+ Add Row</button>
+            <p className="font-semibold">Total: ${total.toFixed(2)}</p>
           </div>
         </>
       ) : (
