@@ -34,7 +34,10 @@ export default function TextPreviewPage() {
 
       const sorted = data.uploads
         .filter((u: Upload) => u.draftText || u.guidelinesText)
-        .sort((a: Upload, b: Upload) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        .sort(
+          (a: Upload, b: Upload) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
 
       setUploads(sorted);
       if (sorted.length > 0) {
@@ -46,27 +49,42 @@ export default function TextPreviewPage() {
   }, [user]);
 
   const handleAddRow = () => {
-    setBudget([...budget, { role: '', name: '', effort: 0, salary: 0, fringe: 0, category: '', notes: '' }]);
+    setBudget([
+      ...budget,
+      {
+        role: "",
+        name: "",
+        effort: 0,
+        salary: 0,
+        fringe: 0,
+        category: "",
+        notes: "",
+      },
+    ]);
   };
 
-  const handleBudgetChange = <K extends keyof BudgetItem>(index: number, field: K, value: string) => {
+  const handleBudgetChange = <K extends keyof BudgetItem>(
+    index: number,
+    field: K,
+    value: BudgetItem[K]
+  ) => {
     const updated = [...budget];
-    if (field === 'effort' || field === 'salary' || field === 'fringe') {
-      updated[index][field] = Number(value) as BudgetItem[K];
-    } else {
-      updated[index][field] = value as BudgetItem[K];
-    }
+    updated[index][field] = value;
     setBudget(updated);
   };
 
   const total = budget.reduce(
-    (sum, item) => sum + (item.salary * item.effort / 100 + item.fringe),
+    (sum, item) => sum + (item.salary * item.effort) / 100 + item.fringe,
     0
   );
 
   return (
-    <div style={{ background: "#fff", color: "#000", minHeight: "100vh", padding: "2rem" }}>
-      <h1 style={{ fontSize: "1.8rem", fontWeight: "bold", marginBottom: "1rem" }}>Text Extract Preview</h1>
+    <div
+      style={{ background: "#fff", color: "#000", minHeight: "100vh", padding: "2rem" }}
+    >
+      <h1 style={{ fontSize: "1.8rem", fontWeight: "bold", marginBottom: "1rem" }}>
+        Text Extract Preview
+      </h1>
 
       {latest ? (
         <>
@@ -104,7 +122,6 @@ export default function TextPreviewPage() {
             </div>
           </section>
 
-          {/* Budget Table UI */}
           <div className="bg-white text-black p-6 border rounded mt-8">
             <h2 className="text-xl font-bold mb-4">Build Your Budget</h2>
             <table className="w-full mb-4 border text-sm">
@@ -123,12 +140,20 @@ export default function TextPreviewPage() {
                 {budget.map((item, idx) => (
                   <tr key={idx}>
                     {Object.entries(item).map(([key, value]) => (
-                      <td className="border px-2 py-1" key={key}>
+                      <td key={key} className="border px-2 py-1">
                         <input
                           className="w-full border px-1 py-0.5"
-                          type={typeof value === 'number' ? 'number' : 'text'}
+                          type={typeof value === "number" ? "number" : "text"}
                           value={value}
-                          onChange={(e) => handleBudgetChange(idx, key as keyof BudgetItem, e.target.value)}
+                          onChange={(e) =>
+                            handleBudgetChange(
+                              idx,
+                              key as keyof BudgetItem,
+                              typeof value === "number"
+                                ? Number(e.target.value)
+                                : e.target.value
+                            )
+                          }
                         />
                       </td>
                     ))}
@@ -136,7 +161,12 @@ export default function TextPreviewPage() {
                 ))}
               </tbody>
             </table>
-            <button onClick={handleAddRow} className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600 mb-2">+ Add Row</button>
+            <button
+              onClick={handleAddRow}
+              className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600 mb-2"
+            >
+              + Add Row
+            </button>
             <p className="font-semibold">Total: ${total.toFixed(2)}</p>
           </div>
         </>
@@ -146,7 +176,15 @@ export default function TextPreviewPage() {
 
       {uploads.length > 1 && (
         <section>
-          <h2 style={{ fontSize: "1.2rem", fontWeight: "bold", marginTop: "2rem" }}>Past Uploads</h2>
+          <h2
+            style={{
+              fontSize: "1.2rem",
+              fontWeight: "bold",
+              marginTop: "2rem",
+            }}
+          >
+            Past Uploads
+          </h2>
           <ul style={{ marginTop: "1rem" }}>
             {uploads.slice(1).map((upload) => (
               <li key={upload._id}>
@@ -168,7 +206,10 @@ export default function TextPreviewPage() {
         </section>
       )}
 
-      <Link href="/upload" style={{ display: "block", marginTop: "2rem", color: "#2563eb" }}>
+      <Link
+        href="/upload"
+        style={{ display: "block", marginTop: "2rem", color: "#2563eb" }}
+      >
         ← Back to Uploads
       </Link>
     </div>
