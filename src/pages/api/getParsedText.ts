@@ -1,28 +1,55 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import clientPromise from '@/lib/mongodb';
-import { ObjectId } from 'mongodb';
+import type { NextApiRequest, NextApiResponse } from "next";
+import { getSession } from "@auth0/nextjs-auth0";
+import clientPromise from "../../lib/mongodb";
+import { ObjectId } from "mongodb";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { id } = req.query;
+interface Upload {
+  _id: ObjectId;
+  parsedText?: {
+    draft?: string;
+    guidelines?: string;
+  };
+  createdAt: string;
+  userSub: string;
+}
+
+interface ParsedUpload {
+  _id: string;
+  draftText: string;
+  guidelinesText: string;
+  createdAt: string;
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+): Promise<void> {
+  const session = await getSession(req, res);
+  if (!session?.user) {
+    res.status(401).json({ error: "Not logged in" });
+    return;
+  }
 
   try {
     const client = await clientPromise;
-    const db = client.db('pdfUploader');
-    const collection = db.collection('uploads');
+    const db = client.db();
 
-    const query = id ? { _id: new ObjectId(id as string) } : {};
-    const upload = await collection.findOne(query);
+    const uploads = (await db
+      .collection<Upload>("uploads")
+      .find({ userSub: session.user.sub })
+      .sort({ createdAt: -1 })
+      .toArray()) as Upload[];
 
-    if (!upload) {
-      return res.status(404).json({ message: 'Not found' });
-    }
+    const parsed: ParsedUpload[] = uploads.map((upload) => ({
+      _id: upload._id.toString(),
+      draftText: upload.parsedText?.draft || "",
+      guidelinesText: upload.parsedText?.guidelines || "",
+      createdAt: upload.createdAt,
+    }));
 
-    res.status(200).json({
-      draft: upload.draft?.parsedText || '',
-      guidelines: upload.guidelines?.parsedText || '',
-    });
-  } catch (error) {
-    console.error('Failed to fetch parsed text:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(200).json({ uploads: parsed });
+  } catch (err) {
+    console.error("Failed to fetch uploads:", err);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 }

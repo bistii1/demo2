@@ -1,88 +1,82 @@
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
-import Link from 'next/link';
-import { useUser } from '@auth0/nextjs-auth0/client';
+import { useEffect, useState } from "react";
+import { useUser } from "@auth0/nextjs-auth0/client";
+import Link from "next/link";
 
-type Upload = {
+interface Upload {
   _id: string;
-  uploadedAt: string;
-};
+  draftText: string;
+  guidelinesText: string;
+  createdAt: string;
+}
 
-export default function TextPreview() {
-  const router = useRouter();
-  const { id } = router.query;
-  const [draftText, setDraftText] = useState('');
-  const [guidelinesText, setGuidelinesText] = useState('');
-  const [pastUploads, setPastUploads] = useState<Upload[]>([]);
+export default function TextPreviewPage() {
   const { user } = useUser();
+  const [latest, setLatest] = useState<Upload | null>(null);
+  const [uploads, setUploads] = useState<Upload[]>([]);
 
   useEffect(() => {
-    const fetchParsedText = async () => {
-      try {
-        const res = await fetch(`/api/getParsedText${id ? `?id=${id}` : ''}`);
-        const data = await res.json();
-        setDraftText(data.draft || '');
-        setGuidelinesText(data.guidelines || '');
-      } catch (err) {
-        console.error('Error loading parsed text:', err);
-      }
-    };
-
-    fetchParsedText();
-  }, [id]);
-
-  useEffect(() => {
-    const fetchPastUploads = async () => {
+    async function fetchUploads() {
       if (!user) return;
-      try {
-        const res = await fetch('/api/getPastUploads');
-        const data = await res.json();
-        setPastUploads(data.uploads || []);
-      } catch (err) {
-        console.error('Error loading past uploads:', err);
-      }
-    };
 
-    fetchPastUploads();
+      const res = await fetch("/api/getParsedText");
+      const data = await res.json();
+
+      const sorted = data.uploads
+        .filter((u: Upload) => u.draftText || u.guidelinesText)
+        .sort((a: Upload, b: Upload) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      setUploads(sorted);
+      if (sorted.length > 0) {
+        setLatest(sorted[0]);
+      }
+    }
+
+    fetchUploads();
   }, [user]);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold mb-6">Text Extract Preview</h1>
+    <div style={{ background: "#fff", color: "#000", minHeight: "100vh", padding: "2rem" }}>
+      <h1 style={{ fontSize: "1.8rem", fontWeight: "bold", marginBottom: "1rem" }}>Text Extract Preview</h1>
 
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold text-blue-600 mb-2">Draft Text</h2>
-        <div className="p-4 border rounded bg-gray-100 whitespace-pre-wrap">
-          {draftText ? draftText : 'No draft text available.'}
-        </div>
-      </div>
+      {latest ? (
+        <>
+          <section style={{ marginBottom: "2rem" }}>
+            <h2 style={{ color: "#1d4ed8" }}>Draft Text</h2>
+            <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", whiteSpace: "pre-wrap" }}>
+              {latest.draftText || "No draft text available."}
+            </div>
+          </section>
 
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold text-green-600 mb-2">Guidelines Text</h2>
-        <div className="p-4 border rounded bg-gray-100 whitespace-pre-wrap">
-          {guidelinesText ? guidelinesText : 'No guidelines text available.'}
-        </div>
-      </div>
+          <section style={{ marginBottom: "2rem" }}>
+            <h2 style={{ color: "#15803d" }}>Guidelines Text</h2>
+            <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", whiteSpace: "pre-wrap" }}>
+              {latest.guidelinesText || "No guidelines text available."}
+            </div>
+          </section>
+        </>
+      ) : (
+        <p>No uploads found.</p>
+      )}
 
-      {user && (
-        <div className="mb-10">
-          <h2 className="text-lg font-semibold mb-2">Your Past Uploads</h2>
-          <ul className="space-y-2">
-            {pastUploads.map((upload) => (
+      {uploads.length > 1 && (
+        <section>
+          <h2 style={{ fontSize: "1.2rem", fontWeight: "bold", marginTop: "2rem" }}>Past Uploads</h2>
+          <ul style={{ marginTop: "1rem" }}>
+            {uploads.slice(1).map((upload) => (
               <li key={upload._id}>
                 <button
-                  className="text-blue-500 underline hover:text-blue-700"
-                  onClick={() => router.push(`/textpreview?id=${upload._id}`)}
+                  style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", textDecoration: "underline" }}
+                  onClick={() => setLatest(upload)}
                 >
-                  {new Date(upload.uploadedAt).toLocaleString()}
+                  View Upload from {new Date(upload.createdAt).toLocaleString()}
                 </button>
               </li>
             ))}
           </ul>
-        </div>
+        </section>
       )}
 
-      <Link href="/upload" className="text-blue-600 hover:underline">
+      <Link href="/upload" style={{ display: "block", marginTop: "2rem", color: "#2563eb" }}>
         ← Back to Uploads
       </Link>
     </div>
