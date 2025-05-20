@@ -1,24 +1,25 @@
-// pages/api/getParsedText.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import clientPromise from '@/lib/mongodb';
+import { ObjectId } from 'mongodb';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { id } = req.query;
+
   try {
     const client = await clientPromise;
     const db = client.db('pdfUploader');
     const collection = db.collection('uploads');
 
-    const { id } = req.query;
-    const query = id ? { _id: new (require('mongodb')).ObjectId(id as string) } : {};
-    const latestUpload = await collection.findOne(query || {}, { sort: { uploadedAt: -1 } });
+    const query = id ? { _id: new ObjectId(id as string) } : {};
+    const upload = await collection.findOne(query);
 
-    if (!latestUpload) {
-      return res.status(404).json({ message: 'No uploads found' });
+    if (!upload) {
+      return res.status(404).json({ message: 'Not found' });
     }
 
     res.status(200).json({
-      draftText: latestUpload.draft?.parsedText || '',
-      guidelinesText: latestUpload.guidelines?.parsedText || '',
+      draft: upload.draft?.parsedText || '',
+      guidelines: upload.guidelines?.parsedText || '',
     });
   } catch (error) {
     console.error('Failed to fetch parsed text:', error);
