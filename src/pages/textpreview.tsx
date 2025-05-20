@@ -73,6 +73,13 @@ export default function TextPreviewPage() {
               {latest.guidelinesText || "No guidelines text available."}
             </div>
           </section>
+
+          {/* Budget Table UI */}
+          <div className="bg-white text-black p-6 border rounded mt-8">
+            <h2 className="text-xl font-bold mb-4">Build Your Budget</h2>
+
+            <p className="text-sm text-gray-700 mb-4">Coming soon: interactive budget table that aligns with guideline constraints.</p>
+          </div>
         </>
       ) : (
         <p>No uploads found.</p>
