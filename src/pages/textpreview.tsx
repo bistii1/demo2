@@ -48,6 +48,61 @@ export default function TextPreviewPage() {
     fetchUploads();
   }, [user]);
 
+  useEffect(() => {
+    if (!latest) return;
+
+    const draft = latest.draftText.toLowerCase();
+    const guidelines = latest.guidelinesText.toLowerCase();
+
+    const combined = `${draft}\n${guidelines}`;
+    const lines = combined.split("\n");
+
+    const budgetKeywords = [
+      "principal investigator",
+      "co-investigator",
+      "research assistant",
+      "graduate student",
+      "postdoc",
+      "technician",
+      "salary",
+      "effort",
+      "fringe",
+    ];
+
+    const detected: BudgetItem[] = [];
+
+    for (let line of lines) {
+      if (budgetKeywords.some((k) => line.includes(k))) {
+        const match = line.match(
+          /(principal investigator|co-investigator|research assistant|graduate student|postdoc|technician)?\s*(?:[:\-])?\s*([a-zA-Z\s]+)?\s*(\d{1,2})?\%?\s*\$?([\d,]+)?/
+        );
+
+        if (match) {
+          const [, roleMatch, nameMatch, effortMatch, salaryMatch] = match;
+
+          const role = roleMatch?.trim() || "Research Staff";
+          const name = nameMatch?.trim() || "";
+          const effort = effortMatch ? parseFloat(effortMatch) : 50;
+          const salary = salaryMatch ? parseInt(salaryMatch.replace(/,/g, ""), 10) : 50000;
+
+          detected.push({
+            role: role,
+            name: name,
+            effort: effort,
+            salary: salary,
+            fringe: Math.round(salary * 0.2),
+            category: "Personnel",
+            notes: line.trim(),
+          });
+        }
+      }
+    }
+
+    if (detected.length > 0) {
+      setBudget(detected);
+    }
+  }, [latest]);
+
   const handleAddRow = () => {
     setBudget([
       ...budget,
@@ -139,19 +194,19 @@ export default function TextPreviewPage() {
               <tbody>
                 {budget.map((item, idx) => (
                   <tr key={idx}>
-                    {Object.entries(item).map(([key, value]) => (
+                    {(Object.keys(item) as (keyof BudgetItem)[]).map((key) => (
                       <td key={key} className="border px-2 py-1">
                         <input
                           className="w-full border px-1 py-0.5"
-                          type={typeof value === "number" ? "number" : "text"}
-                          value={value}
+                          type={typeof item[key] === "number" ? "number" : "text"}
+                          value={item[key] as string | number}
                           onChange={(e) =>
                             handleBudgetChange(
                               idx,
-                              key as keyof BudgetItem,
-                              typeof value === "number"
+                              key,
+                              typeof item[key] === "number"
                                 ? Number(e.target.value)
-                                : e.target.value
+                                : e.target.value as any
                             )
                           }
                         />
