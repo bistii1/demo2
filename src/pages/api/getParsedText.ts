@@ -1,3 +1,4 @@
+// pages/api/getParsedText.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import clientPromise from '@/lib/mongodb';
 
@@ -7,23 +8,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const db = client.db('pdfUploader');
     const collection = db.collection('uploads');
 
-    const latestUpload = await collection.findOne({}, { sort: { uploadedAt: -1 } });
+    const { id } = req.query;
+    const query = id ? { _id: new (require('mongodb')).ObjectId(id as string) } : {};
+    const latestUpload = await collection.findOne(query || {}, { sort: { uploadedAt: -1 } });
 
     if (!latestUpload) {
       return res.status(404).json({ message: 'No uploads found' });
     }
 
-    // ✅ LOGS to debug parsed text issue
-    console.log('📦 Latest upload document:', latestUpload);
-    console.log('📝 Draft parsedText:', latestUpload?.draft?.parsedText);
-    console.log('📘 Guidelines parsedText:', latestUpload?.guidelines?.parsedText);
-
     res.status(200).json({
-      draft: latestUpload.draft?.parsedText || '',
-      guidelines: latestUpload.guidelines?.parsedText || '',
+      draftText: latestUpload.draft?.parsedText || '',
+      guidelinesText: latestUpload.guidelines?.parsedText || '',
     });
   } catch (error) {
-    console.error('❌ Failed to fetch parsed text:', error);
+    console.error('Failed to fetch parsed text:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 }
