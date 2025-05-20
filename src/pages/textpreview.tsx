@@ -1,55 +1,49 @@
+// pages/textpreview.tsx
 import { useEffect, useState } from 'react';
 
 export default function TextPreview() {
-  const [draftText, setDraftText] = useState('');
-  const [guidelinesText, setGuidelinesText] = useState('');
+  const [parsed, setParsed] = useState<{ draftText: string; guidelinesText: string } | null>(null);
 
   useEffect(() => {
     const fetchParsedText = async () => {
-      try {
-        const res = await fetch('/api/parsed-text');
-        const json = await res.json();
-
-        console.log('Parsed text response:', json); // ✅ Log response to debug
-
-        // Support both direct and nested formats
-        const draft = json.draft || json?.data?.draft || '';
-        const guidelines = json.guidelines || json?.data?.guidelines || '';
-
-        setDraftText(draft);
-        setGuidelinesText(guidelines);
-      } catch (error) {
-        console.error('Failed to fetch parsed text', error);
-      }
+      const res = await fetch('/api/getParsedText');
+      const data = await res.json();
+      setParsed(data);
     };
-
     fetchParsedText();
   }, []);
 
   return (
-    <div className="min-h-screen bg-white text-black px-6 py-8">
-      <h1 className="text-3xl font-bold mb-6">Text Extract Preview</h1>
+    <div style={{ backgroundColor: 'white', minHeight: '100vh', padding: '2rem' }}>
+      <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '2rem' }}>Text Extract Preview</h1>
 
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-blue-700 mb-2">Draft Text</h2>
-        <div className="bg-gray-100 border border-black rounded p-4 whitespace-pre-wrap h-60 overflow-y-auto">
-          {draftText || 'No draft text available.'}
+      <div style={{ marginBottom: '2rem' }}>
+        <h2 style={{ color: 'black', fontWeight: 'bold' }}>Draft Text</h2>
+        <div style={{
+          border: '2px solid black',
+          padding: '1rem',
+          backgroundColor: '#fff',
+          color: '#000',
+          whiteSpace: 'pre-wrap',
+          minHeight: '100px'
+        }}>
+          {parsed?.draftText || 'Loading...'}
         </div>
       </div>
 
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-green-700 mb-2">Guidelines Text</h2>
-        <div className="bg-gray-100 border border-black rounded p-4 whitespace-pre-wrap h-60 overflow-y-auto">
-          {guidelinesText || 'No guidelines text available.'}
+      <div>
+        <h2 style={{ color: 'black', fontWeight: 'bold' }}>Guidelines Text</h2>
+        <div style={{
+          border: '2px solid black',
+          padding: '1rem',
+          backgroundColor: '#fff',
+          color: '#000',
+          whiteSpace: 'pre-wrap',
+          minHeight: '100px'
+        }}>
+          {parsed?.guidelinesText || 'Loading...'}
         </div>
       </div>
-
-      <button
-        onClick={() => (window.location.href = '/upload')}
-        className="mt-4 px-6 py-2 bg-blue-600 text-white font-semibold rounded hover:bg-blue-700"
-      >
-        ← Back to Uploads
-      </button>
     </div>
   );
 }
