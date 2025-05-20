@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import pdfParse from 'pdf-parse';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import clientPromise from '@/lib/mongodb';
-import { getSession } from '@auth0/nextjs-auth0'; // ✅ add this
+import { getSession } from '@auth0/nextjs-auth0';
 
 export const config = {
   api: {
@@ -21,9 +21,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
   }
-
-  const session = await getSession(req, res); // ✅ get user session
-  const userSub = session?.user?.sub || null; // ✅ extract user ID
 
   const form = new IncomingForm({ keepExtensions: true, multiples: true });
 
@@ -53,25 +50,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const guidelinesText = (await pdfParse(guidelinesBuffer)).text;
       const draftText = (await pdfParse(draftBuffer)).text;
 
+      const session = await getSession(req, res);
+      const user = session?.user;
+
       const client = await clientPromise;
       const db = client.db('pdfUploader');
       const collection = db.collection('uploads');
 
       await collection.insertOne({
         uploadedAt: new Date(),
-        userEmail: fields.userEmail || 'anonymous',
-        userSub: userSub, // ✅ this is what allows filtered queries later
+        userEmail: user?.email || fields.userEmail || 'anonymous',
+        userSub: user?.sub || null,
+        parsedText: {
+          guidelines: guidelinesText,
+          draft: draftText
+        },
         guidelines: {
           filename: guidelinesFile.originalFilename,
           contentType: guidelinesFile.mimetype,
           data: guidelinesBuffer,
-          parsedText: guidelinesText,
         },
         draft: {
           filename: draftFile.originalFilename,
           contentType: draftFile.mimetype,
           data: draftBuffer,
-          parsedText: draftText,
         },
       });
 
