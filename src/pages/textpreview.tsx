@@ -3,22 +3,25 @@ import { useEffect, useState } from 'react';
 export default function TextPreview() {
   const [draftText, setDraftText] = useState('');
   const [guidelinesText, setGuidelinesText] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchParsedText = async () => {
       try {
-        const res = await fetch('/api/getParsedText'); // ✅ Corrected route
+        const res = await fetch('/api/getParsedText');
+        if (!res.ok) {
+          throw new Error(`API error: ${res.status}`);
+        }
+
         const json = await res.json();
 
-        console.log('Parsed text response:', json); // ✅ Debug
+        console.log('🔍 API Response:', json); // Log full response
 
-        const draft = json.draftText || json?.data?.draftText || '';
-        const guidelines = json.guidelinesText || json?.data?.guidelinesText || '';
-
-        setDraftText(draft);
-        setGuidelinesText(guidelines);
-      } catch (error) {
-        console.error('Failed to fetch parsed text', error);
+        setDraftText(json.draftText || '');
+        setGuidelinesText(json.guidelinesText || '');
+      } catch (err) {
+        console.error('❌ Failed to fetch parsed text', err);
+        setError('Failed to load parsed text. Please try again.');
       }
     };
 
@@ -28,6 +31,10 @@ export default function TextPreview() {
   return (
     <div className="min-h-screen bg-white text-black px-6 py-8">
       <h1 className="text-3xl font-bold mb-6">Text Extract Preview</h1>
+
+      {error && (
+        <div className="text-red-600 font-semibold mb-4">{error}</div>
+      )}
 
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-blue-700 mb-2">Draft Text</h2>
