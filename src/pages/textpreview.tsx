@@ -42,14 +42,34 @@ export default function TextPreviewPage() {
         <>
           <section style={{ marginBottom: "2rem" }}>
             <h2 style={{ color: "#1d4ed8" }}>Draft Text</h2>
-            <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", whiteSpace: "pre-wrap" }}>
+            <div
+              style={{
+                border: "1px solid #ccc",
+                padding: "1rem",
+                borderRadius: "8px",
+                whiteSpace: "pre-wrap",
+                background: "#f9f9f9",
+                maxHeight: "300px",
+                overflowY: "auto",
+              }}
+            >
               {latest.draftText || "No draft text available."}
             </div>
           </section>
 
           <section style={{ marginBottom: "2rem" }}>
             <h2 style={{ color: "#15803d" }}>Guidelines Text</h2>
-            <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px", whiteSpace: "pre-wrap" }}>
+            <div
+              style={{
+                border: "1px solid #ccc",
+                padding: "1rem",
+                borderRadius: "8px",
+                whiteSpace: "pre-wrap",
+                background: "#f9f9f9",
+                maxHeight: "300px",
+                overflowY: "auto",
+              }}
+            >
               {latest.guidelinesText || "No guidelines text available."}
             </div>
           </section>
@@ -65,7 +85,13 @@ export default function TextPreviewPage() {
             {uploads.slice(1).map((upload) => (
               <li key={upload._id}>
                 <button
-                  style={{ background: "none", border: "none", color: "#2563eb", cursor: "pointer", textDecoration: "underline" }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#2563eb",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
                   onClick={() => setLatest(upload)}
                 >
                   View Upload from {new Date(upload.createdAt).toLocaleString()}
