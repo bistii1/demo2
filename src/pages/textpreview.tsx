@@ -39,35 +39,44 @@ export default function TextPreviewPage() {
   }, [user]);
 
   const handleCheckCompliance = async () => {
-    if (!latest) return;
+  if (!latest) return;
 
-    setLoading(true);
-    setError("");
-    setAnnotatedHtml("");
+  setLoading(true);
+  setError("");
+  setAnnotatedHtml("");
 
-    try {
-      const res = await fetch("/api/annotateCompliance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          draft: latest.draftText,
-          guidelines: latest.guidelinesText,
-        }),
-      });
+  console.log("Sending draft/guidelines to compliance API");
+  console.log("Draft preview:", latest.draftText.slice(0, 200));
+  console.log("Guidelines preview:", latest.guidelinesText.slice(0, 200));
 
-      if (!res.ok) {
-        throw new Error("Compliance check failed");
-      }
+  try {
+    const res = await fetch("/api/annotateCompliance", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        draft: latest.draftText,
+        guidelines: latest.guidelinesText,
+      }),
+    });
 
-      const data = await res.json();
-      setAnnotatedHtml(data.annotated);
-    } catch (err) {
-      console.error(err);
-      setError("Something went wrong while checking compliance.");
-    } finally {
-      setLoading(false);
+    console.log("API response status:", res.status);
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("API error body:", errorText);
+      throw new Error("Compliance check failed");
     }
-  };
+
+    const data = await res.json();
+    console.log("API response body:", data);
+    setAnnotatedHtml(data.annotated);
+  } catch (err) {
+    console.error("Client-side error:", err);
+    setError("Something went wrong while checking compliance.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div style={{ background: "#fff", color: "#000", minHeight: "100vh", padding: "2rem" }}>
