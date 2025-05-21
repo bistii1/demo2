@@ -133,7 +133,7 @@ export default function Upload() {
             </p>
             <Link href="/textpreview" className="mt-4 inline-block">
               <button className="bg-black text-white px-6 py-2 rounded hover:bg-gray-800">
-                View Text Preview
+                View Budget Info
               </button>
             </Link>
           </>
