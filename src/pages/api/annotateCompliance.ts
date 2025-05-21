@@ -1,27 +1,27 @@
-import { OpenAI } from 'openai';
-import type { NextApiRequest, NextApiResponse } from 'next';
+import OpenAI from "openai";
+import type { NextApiRequest, NextApiResponse } from "next";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Only POST requests allowed' });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Only POST requests allowed" });
   }
 
   const { draft, guidelines } = req.body;
 
   if (!draft || !guidelines) {
-    return res.status(400).json({ error: 'Missing draft or guidelines text' });
+    return res.status(400).json({ error: "Missing draft or guidelines text" });
   }
 
   try {
     const chatCompletion = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: "gpt-4",
       messages: [
         {
-          role: 'user',
+          role: "user",
           content: `
 You are a proposal compliance checker. The user will give you two documents:
 1. A research proposal draft
@@ -41,17 +41,17 @@ ${draft}
 --- GUIDELINE START ---
 ${guidelines}
 --- GUIDELINE END ---
-          `.trim(),
+        `.trim(),
         },
       ],
       temperature: 0.3,
     });
 
-    const annotated = chatCompletion.choices[0]?.message?.content ?? '';
-
-    res.status(200).json({ annotated });
-  } catch (err) {
-    console.error('Annotation API error:', err);
-    res.status(500).json({ error: 'Failed to annotate compliance' });
+    const annotated = chatCompletion.choices[0]?.message?.content ?? "";
+    return res.status(200).json({ annotated });
+  } catch (err: unknown) {
+    console.error("Annotation API error:", err);
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return res.status(500).json({ error: message });
   }
 }
