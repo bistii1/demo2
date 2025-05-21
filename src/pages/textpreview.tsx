@@ -34,10 +34,7 @@ export default function TextPreviewPage() {
 
       const sorted = data.uploads
         .filter((u: Upload) => u.draftText || u.guidelinesText)
-        .sort(
-          (a: Upload, b: Upload) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
+        .sort((a: Upload, b: Upload) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       setUploads(sorted);
       if (sorted.length > 0) {
@@ -71,7 +68,7 @@ export default function TextPreviewPage() {
 
     const detected: BudgetItem[] = [];
 
-    for (let line of lines) {
+    for (const line of lines) {
       if (budgetKeywords.some((k) => line.includes(k))) {
         const match = line.match(
           /(principal investigator|co-investigator|research assistant|graduate student|postdoc|technician)?\s*(?:[:\-])?\s*([a-zA-Z\s]+)?\s*(\d{1,2})?\%?\s*\$?([\d,]+)?/
@@ -86,10 +83,10 @@ export default function TextPreviewPage() {
           const salary = salaryMatch ? parseInt(salaryMatch.replace(/,/g, ""), 10) : 50000;
 
           detected.push({
-            role: role,
-            name: name,
-            effort: effort,
-            salary: salary,
+            role,
+            name,
+            effort,
+            salary,
             fringe: Math.round(salary * 0.2),
             category: "Personnel",
             notes: line.trim(),
@@ -104,8 +101,8 @@ export default function TextPreviewPage() {
   }, [latest]);
 
   const handleAddRow = () => {
-    setBudget([
-      ...budget,
+    setBudget((prev) => [
+      ...prev,
       {
         role: "",
         name: "",
@@ -118,11 +115,7 @@ export default function TextPreviewPage() {
     ]);
   };
 
-  const handleBudgetChange = <K extends keyof BudgetItem>(
-    index: number,
-    field: K,
-    value: BudgetItem[K]
-  ) => {
+  const handleBudgetChange = <K extends keyof BudgetItem>(index: number, field: K, value: BudgetItem[K]) => {
     const updated = [...budget];
     updated[index][field] = value;
     setBudget(updated);
@@ -134,9 +127,7 @@ export default function TextPreviewPage() {
   );
 
   return (
-    <div
-      style={{ background: "#fff", color: "#000", minHeight: "100vh", padding: "2rem" }}
-    >
+    <div style={{ background: "#fff", color: "#000", minHeight: "100vh", padding: "2rem" }}>
       <h1 style={{ fontSize: "1.8rem", fontWeight: "bold", marginBottom: "1rem" }}>
         Text Extract Preview
       </h1>
@@ -195,7 +186,7 @@ export default function TextPreviewPage() {
                 {budget.map((item, idx) => (
                   <tr key={idx}>
                     {(Object.keys(item) as (keyof BudgetItem)[]).map((key) => (
-                      <td key={key} className="border px-2 py-1">
+                      <td key={String(key)} className="border px-2 py-1">
                         <input
                           className="w-full border px-1 py-0.5"
                           type={typeof item[key] === "number" ? "number" : "text"}
@@ -206,7 +197,7 @@ export default function TextPreviewPage() {
                               key,
                               typeof item[key] === "number"
                                 ? Number(e.target.value)
-                                : e.target.value as any
+                                : (e.target.value as BudgetItem[typeof key])
                             )
                           }
                         />
@@ -231,15 +222,7 @@ export default function TextPreviewPage() {
 
       {uploads.length > 1 && (
         <section>
-          <h2
-            style={{
-              fontSize: "1.2rem",
-              fontWeight: "bold",
-              marginTop: "2rem",
-            }}
-          >
-            Past Uploads
-          </h2>
+          <h2 style={{ fontSize: "1.2rem", fontWeight: "bold", marginTop: "2rem" }}>Past Uploads</h2>
           <ul style={{ marginTop: "1rem" }}>
             {uploads.slice(1).map((upload) => (
               <li key={upload._id}>
@@ -261,10 +244,7 @@ export default function TextPreviewPage() {
         </section>
       )}
 
-      <Link
-        href="/upload"
-        style={{ display: "block", marginTop: "2rem", color: "#2563eb" }}
-      >
+      <Link href="/upload" style={{ display: "block", marginTop: "2rem", color: "#2563eb" }}>
         ← Back to Uploads
       </Link>
     </div>
