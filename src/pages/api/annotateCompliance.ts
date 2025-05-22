@@ -22,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     try {
         const chatCompletion = await openai.chat.completions.create({
-            model: 'gpt-4-32k',
+            model: 'gpt-3.5-turbo',
             messages: [
                 {
                     role: 'user',
