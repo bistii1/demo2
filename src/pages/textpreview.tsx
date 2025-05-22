@@ -1,3 +1,4 @@
+// pages/textpreview.tsx
 import { useEffect, useState } from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import Link from "next/link";
@@ -24,6 +25,7 @@ export default function TextPreviewPage() {
   const [latest, setLatest] = useState<Upload | null>(null);
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [annotatedHtml, setAnnotatedHtml] = useState<string>("");
+  const [correctedHtml, setCorrectedHtml] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [budget, setBudget] = useState<BudgetItem[]>([]);
@@ -37,7 +39,10 @@ export default function TextPreviewPage() {
 
       const sorted = data.uploads
         .filter((u: Upload) => u.draftText || u.guidelinesText)
-        .sort((a: Upload, b: Upload) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        .sort(
+          (a: Upload, b: Upload) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
 
       setUploads(sorted);
       if (sorted.length > 0) {
@@ -54,6 +59,7 @@ export default function TextPreviewPage() {
     setLoading(true);
     setError("");
     setAnnotatedHtml("");
+    setCorrectedHtml("");
 
     try {
       const res = await fetch("/api/annotateCompliance", {
@@ -71,6 +77,7 @@ export default function TextPreviewPage() {
 
       const data = await res.json();
       setAnnotatedHtml(data.annotated);
+      setCorrectedHtml(data.corrected);
     } catch (err) {
       console.error(err);
       setError("Something went wrong while checking compliance.");
@@ -94,13 +101,20 @@ export default function TextPreviewPage() {
     ]);
   };
 
-  const handleBudgetChange = <K extends keyof BudgetItem>(index: number, field: K, value: BudgetItem[K]) => {
+  const handleBudgetChange = <K extends keyof BudgetItem>(
+    index: number,
+    field: K,
+    value: BudgetItem[K]
+  ) => {
     const updated = [...budget];
     updated[index][field] = value;
     setBudget(updated);
   };
 
-  const total = budget.reduce((sum, item) => sum + (item.salary * item.effort) / 100 + item.fringe, 0);
+  const total = budget.reduce(
+    (sum, item) => sum + (item.salary * item.effort) / 100 + item.fringe,
+    0
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-100 to-blue-200 py-10 px-2 font-sans">
@@ -144,6 +158,18 @@ export default function TextPreviewPage() {
                 <div
                   className="border border-red-200 rounded-xl bg-red-50 p-4 max-h-96 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-900"
                   dangerouslySetInnerHTML={{ __html: annotatedHtml }}
+                />
+              </section>
+            )}
+
+            {correctedHtml && (
+              <section className="mb-10">
+                <h2 className="text-lg font-bold text-indigo-700 mb-2">
+                  Corrected Draft (Auto-Filled)
+                </h2>
+                <div
+                  className="border border-indigo-200 rounded-xl bg-indigo-50 p-4 max-h-96 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-900"
+                  dangerouslySetInnerHTML={{ __html: correctedHtml }}
                 />
               </section>
             )}
@@ -213,6 +239,7 @@ export default function TextPreviewPage() {
                     onClick={() => {
                       setLatest(upload);
                       setAnnotatedHtml("");
+                      setCorrectedHtml("");
                     }}
                   >
                     View Upload from {new Date(upload.createdAt).toLocaleString()}
