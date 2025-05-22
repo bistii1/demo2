@@ -3,69 +3,72 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY!,
+  apiKey: process.env.OPENAI_API_KEY!,
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Only POST requests allowed' });
-    }
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Only POST requests allowed' });
+  }
 
-    const { draft, guidelines } = req.body;
+  const { draft } = req.body;
 
-    if (!draft || !guidelines) {
-        return res.status(400).json({ error: 'Missing draft or guidelines text' });
-    }
+  if (!draft) {
+    return res.status(400).json({ error: 'Missing draft text' });
+  }
 
-    console.log("📥 Draft preview:", draft.slice(0, 150));
-    console.log("📥 Guidelines preview:", guidelines.slice(0, 150));
+  console.log("📥 Draft preview:", draft.slice(0, 150));
 
-    try {
-        const chatCompletion = await openai.chat.completions.create({
-            model: 'gpt-3.5-turbo',
-            messages: [
-                {
-                    role: 'user',
-                    content: `
-You are a research proposal compliance reviewer.
+  try {
+    const chatCompletion = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'user',
+          content: `
+You are a research compliance assistant.
 
-Your job is to analyze the draft below and identify whether any key elements are missing or insufficient. Focus on common compliance issues like:
-- Missing abstract
-- No budget justification
-- Missing institutional sign-off
-- Lack of formatting (e.g., headings, section structure)
-- Missing references or required sections like methodology or objectives
+You will receive a research proposal draft. Your tasks are:
+- Identify common compliance issues often found in research proposals (e.g., missing abstract, no budget justification, missing institutional sign-off, lack of section formatting, missing references or methodology).
+- Annotate the draft using HTML by inserting <span style="color:red;">[reason]</span> at the point of each detected issue.
+- Then create a corrected version where you add content inline, also wrapped in <span style="color:red;">[inserted content]</span> so the additions are visible.
 
-Wrap missing or problematic areas in this HTML tag:
-<span style="color:red;">[Explain what’s missing here]</span>
-
-Return only the annotated draft HTML.
+Return a JSON string in this format:
+{
+  "annotatedHtml": "...", // draft with red annotations for issues
+  "correctedHtml": "..."  // draft with added corrections in red
+}
 
 --- DRAFT START ---
 ${draft}
 --- DRAFT END ---
           `.trim(),
-                },
-            ],
-            temperature: 0.3,
-        });
+        },
+      ],
+      temperature: 0.3,
+    });
 
-        console.log("✅ OpenAI API call success");
-        const annotated = chatCompletion.choices[0]?.message?.content ?? '';
-        res.status(200).json({ annotated });
-    } catch (err: unknown) {
-        if (err instanceof Error) {
-            console.error("❌ Annotation API error:", err.message);
-            res.status(500).json({
-                error: 'Failed to annotate compliance',
-                detail: err.message,
-            });
-        } else {
-            console.error("❌ Unknown error:", err);
-            res.status(500).json({
-                error: 'Failed to annotate compliance',
-                detail: 'Unknown error occurred',
-            });
-        }
+    console.log("✅ OpenAI API call success");
+    const jsonText = chatCompletion.choices[0]?.message?.content || '{}';
+    const parsed = JSON.parse(jsonText);
+
+    res.status(200).json({
+      annotated: parsed.annotatedHtml,
+      corrected: parsed.correctedHtml,
+    });
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      console.error("❌ Annotation API error:", err.message);
+      res.status(500).json({
+        error: 'Failed to annotate compliance',
+        detail: err.message,
+      });
+    } else {
+      console.error("❌ Unknown error:", err);
+      res.status(500).json({
+        error: 'Failed to annotate compliance',
+        detail: 'Unknown error occurred',
+      });
     }
+  }
 }
