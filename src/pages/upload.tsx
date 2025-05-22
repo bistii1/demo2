@@ -52,16 +52,16 @@ export default function Upload() {
     };
 
   return (
-    <div className="min-h-screen bg-white text-blue-900">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-100 to-blue-200 text-blue-900 font-sans">
       {/* Navbar */}
-      <nav className="flex justify-between items-center p-4 shadow-md">
-        <Link href="/" className="text-lg font-semibold">
-          Home
+      <nav className="flex justify-between items-center p-6 bg-white/80 shadow-md rounded-b-xl mb-8">
+        <Link href="/" className="text-xl font-bold tracking-tight text-blue-700 hover:underline">
+          Proposal Edge
         </Link>
         {user && (
           <button
             onClick={() => (window.location.href = '/api/auth/logout')}
-            className="text-red-600 font-semibold"
+            className="text-red-600 font-semibold hover:underline"
           >
             Sign Out
           </button>
@@ -69,79 +69,94 @@ export default function Upload() {
       </nav>
 
       {/* Upload Section */}
-      <main className="flex flex-col items-center justify-center p-8">
-        <h1 className="text-2xl font-bold mb-8">Upload your PDF files</h1>
+      <main className="flex flex-col items-center justify-center px-4">
+        <div className="bg-white/90 rounded-2xl shadow-2xl p-10 w-full max-w-3xl">
+          <h1 className="text-3xl font-extrabold mb-8 text-center text-indigo-800 tracking-tight">
+            Upload Your PDF Files
+          </h1>
 
-        <form
-          id="upload-form"
-          onSubmit={handleSubmit}
-          className="flex gap-10 mb-6"
-        >
-          {/* Guidelines Upload */}
-          <div className="w-64">
-            <label className="block mb-2 font-medium text-gray-800">
-              Research Proposal Guidelines (PDF)
-            </label>
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={handleFileChange(setGuidelines)}
-              className="border border-gray-400 rounded px-2 py-1 w-full text-gray-800"
-            />
-            {guidelines && (
-              <embed
-                src={URL.createObjectURL(guidelines)}
-                type="application/pdf"
-                className="mt-2 w-full h-40 border rounded"
-              />
-            )}
-          </div>
-
-          {/* Proposal Upload */}
-          <div className="w-64">
-            <label className="block mb-2 font-medium text-gray-800">
-              Draft Proposal (PDF)
-            </label>
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={handleFileChange(setProposal)}
-              className="border border-gray-400 rounded px-2 py-1 w-full text-gray-800"
-            />
-            {proposal && (
-              <embed
-                src={URL.createObjectURL(proposal)}
-                type="application/pdf"
-                className="mt-2 w-full h-40 border rounded"
-              />
-            )}
-          </div>
-
-          <button
-            type="submit"
-            className="self-end bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+          <form
+            id="upload-form"
+            onSubmit={handleSubmit}
+            className="flex flex-col md:flex-row gap-8 mb-6 justify-center"
           >
-            Submit
-          </button>
-        </form>
+            {/* Guidelines Upload */}
+            <div className="w-full md:w-64">
+              <label className="block mb-2 font-medium text-gray-700">
+                Research Proposal Guidelines (PDF)
+              </label>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={handleFileChange(setGuidelines)}
+                className="border border-gray-300 rounded-lg px-3 py-2 w-full text-gray-800 shadow-sm focus:ring-2 focus:ring-blue-300 transition"
+              />
+              {guidelines && (
+                <embed
+                  src={URL.createObjectURL(guidelines)}
+                  type="application/pdf"
+                  className="mt-3 w-full h-40 border rounded-lg shadow"
+                />
+              )}
+            </div>
 
-        {/* Upload success / error messages */}
-        {uploadSuccess && (
-          <>
-            <p className="text-green-600 mt-4 font-semibold">
-              Upload successful! 🎉
-            </p>
-            <Link href="/textpreview" className="mt-4 inline-block">
-              <button className="bg-black text-white px-6 py-2 rounded hover:bg-gray-800">
-                View Budget Info
-              </button>
-            </Link>
-          </>
-        )}
-        {error && (
-          <p className="text-red-600 mt-4 font-semibold">{error}</p>
-        )}
+            {/* Proposal Upload */}
+            <div className="w-full md:w-64">
+              <label className="block mb-2 font-medium text-gray-700">
+                Draft Proposal (PDF)
+              </label>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={handleFileChange(setProposal)}
+                className="border border-gray-300 rounded-lg px-3 py-2 w-full text-gray-800 shadow-sm focus:ring-2 focus:ring-blue-300 transition"
+              />
+              {proposal && (
+                <embed
+                  src={URL.createObjectURL(proposal)}
+                  type="application/pdf"
+                  className="mt-3 w-full h-40 border rounded-lg shadow"
+                />
+              )}
+            </div>
+          </form>
+
+          <div className="flex justify-center">
+            <button
+              type="submit"
+              form="upload-form"
+              className="bg-gradient-to-r from-indigo-600 to-blue-500 text-white px-8 py-3 rounded-xl shadow-lg font-semibold text-lg hover:from-indigo-700 hover:to-blue-600 transition-all duration-200"
+            >
+              Submit
+            </button>
+          </div>
+
+          {/* Upload success / error messages */}
+          {uploadSuccess && (
+            <div className="flex flex-col items-center mt-6">
+              <p className="text-green-600 font-semibold">
+                Upload successful! 🎉
+              </p>
+              <Link href="/textpreview" className="mt-4 inline-block">
+                <button className="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800 transition">
+                  View Budget Info
+                </button>
+              </Link>
+            </div>
+          )}
+          {error && (
+            <p className="text-red-600 mt-6 font-semibold text-center">{error}</p>
+          )}
+        </div>
       </main>
+
+      {/* Custom font import */}
+      <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        html {
+          font-family: 'Inter', sans-serif;
+        }
+      `}</style>
     </div>
   );
 }
