@@ -1,6 +1,7 @@
 // pages/api/annotateCompliance.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import OpenAI from 'openai';
+import { jsonrepair } from 'jsonrepair';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -42,31 +43,31 @@ Return a JSON string in this format:
 --- DRAFT START ---
 ${draft}
 --- DRAFT END ---
-`.trim(),
+          `.trim(),
         },
       ],
       temperature: 0.3,
     });
 
     console.log("✅ OpenAI API call success");
+    const rawResponse = chatCompletion.choices[0]?.message?.content || '{}';
+    console.log("📤 Raw response:", rawResponse);
 
-    const rawResponse = chatCompletion.choices[0]?.message?.content || '';
-
+    let parsed;
     try {
-      const parsed = JSON.parse(rawResponse);
-      res.status(200).json({
-        annotated: parsed.annotatedHtml,
-        corrected: parsed.correctedHtml,
-      });
-    } catch (jsonErr) {
-      console.error("❌ Failed to parse JSON from model:", jsonErr);
-      console.log("📝 Raw response:", rawResponse);
-      res.status(500).json({
-        error: 'Invalid response format from OpenAI',
-        detail: rawResponse,
+      parsed = JSON.parse(jsonrepair(rawResponse));
+    } catch (err) {
+      console.error("❌ Failed to parse or repair JSON:", rawResponse);
+      return res.status(500).json({
+        error: "Failed to parse JSON response from OpenAI",
+        detail: err instanceof Error ? err.message : "Unknown error",
       });
     }
 
+    res.status(200).json({
+      annotated: parsed.annotatedHtml,
+      corrected: parsed.correctedHtml,
+    });
   } catch (err: unknown) {
     if (err instanceof Error) {
       console.error("❌ Annotation API error:", err.message);

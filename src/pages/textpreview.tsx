@@ -3,6 +3,11 @@ import { useEffect, useState } from "react";
 import { useUser } from "@auth0/nextjs-auth0/client";
 import Link from "next/link";
 
+interface ComplianceResponse {
+  annotated: string;
+  corrected: string;
+}
+
 interface Upload {
   _id: string;
   draftText: string;
@@ -35,7 +40,7 @@ export default function TextPreviewPage() {
       if (!user) return;
 
       const res = await fetch("/api/getParsedText");
-      const data = await res.json();
+      const data: { uploads: Upload[] } = await res.json();
 
       const sorted = data.uploads
         .filter((u: Upload) => u.draftText || u.guidelinesText)
@@ -52,6 +57,7 @@ export default function TextPreviewPage() {
 
     fetchUploads();
   }, [user]);
+
 
   const handleCheckCompliance = async () => {
     if (!latest) return;
