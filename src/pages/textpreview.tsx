@@ -29,6 +29,8 @@ export default function TextPreviewPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [budget, setBudget] = useState<BudgetItem[]>([]);
+  const [chunkProgress, setChunkProgress] = useState({ current: 0, total: 0 });
+  const [estimatedSeconds, setEstimatedSeconds] = useState(0);
 
   useEffect(() => {
     async function fetchUploads() {
@@ -59,41 +61,49 @@ export default function TextPreviewPage() {
     setError("");
     setAnnotatedHtml("");
     setCorrectedHtml("");
-
-    const chunkSize = 6000; // characters, approx. within token limit
-    const chunks = [];
-    for (let i = 0; i < latest.draftText.length; i += chunkSize) {
-      chunks.push(latest.draftText.slice(i, i + chunkSize));
-    }
-
-    const annotatedParts: string[] = [];
-    const correctedParts: string[] = [];
+    setChunkProgress({ current: 0, total: 0 });
 
     try {
+      const CHUNK_SIZE = 6000;
+      const draft = latest.draftText;
+      const chunks = [];
+
+      for (let i = 0; i < draft.length; i += CHUNK_SIZE) {
+        chunks.push(draft.slice(i, i + CHUNK_SIZE));
+      }
+
+      setChunkProgress({ current: 0, total: chunks.length });
+      setEstimatedSeconds(chunks.length * 6);
+
+      let annotatedAll = "";
+      let correctedAll = "";
+
       for (let i = 0; i < chunks.length; i++) {
-        const chunk = chunks[i];
-        console.log(`🔍 Processing chunk ${i + 1}/${chunks.length}`);
+        setChunkProgress({ current: i + 1, total: chunks.length });
+        setEstimatedSeconds((chunks.length - (i + 1)) * 6);
 
         const res = await fetch("/api/annotateCompliance", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ draft: chunk }),
+          body: JSON.stringify({ draft: chunks[i] }),
         });
 
-        if (!res.ok) throw new Error("Chunk compliance check failed");
+        if (!res.ok) throw new Error("Compliance check failed");
 
         const data = await res.json();
-        annotatedParts.push(data.annotated);
-        correctedParts.push(data.corrected);
+        annotatedAll += data.annotated;
+        correctedAll += data.corrected;
       }
 
-      setAnnotatedHtml(annotatedParts.join("<hr />"));
-      setCorrectedHtml(correctedParts.join("<hr />"));
+      setAnnotatedHtml(annotatedAll);
+      setCorrectedHtml(correctedAll);
     } catch (err) {
       console.error(err);
       setError("Something went wrong while checking compliance.");
     } finally {
       setLoading(false);
+      setChunkProgress({ current: 0, total: 0 });
+      setEstimatedSeconds(0);
     }
   };
 
@@ -158,6 +168,13 @@ export default function TextPreviewPage() {
               >
                 {loading ? "Checking..." : "Check Compliance"}
               </button>
+              {chunkProgress.total > 0 && (
+                <div className="text-sm text-gray-700 mb-2">
+                  Processing chunk {chunkProgress.current} of {chunkProgress.total}
+                  <br />
+                  Estimated time remaining: ~{estimatedSeconds}s
+                </div>
+              )}
               {error && <p className="text-red-600 mt-2 font-semibold">{error}</p>}
             </div>
 
