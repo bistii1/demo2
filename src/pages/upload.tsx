@@ -1,3 +1,4 @@
+// pages/upload.tsx
 import { useState, FormEvent, ChangeEvent } from 'react';
 import { useUser } from '@auth0/nextjs-auth0/client';
 import Link from 'next/link';
@@ -9,14 +10,19 @@ export default function Upload() {
   const [proposal, setProposal] = useState<File | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setUploadSuccess(false);
     setError('');
+    setIsUploading(true);
+    setProgress(0);
 
     if (!guidelines || !proposal) {
       setError('Please upload both PDFs.');
+      setIsUploading(false);
       return;
     }
 
@@ -42,6 +48,9 @@ export default function Upload() {
     } catch (err) {
       setError('Something went wrong while uploading.');
       console.error(err);
+    } finally {
+      setIsUploading(false);
+      setProgress(100);
     }
   };
 
@@ -83,7 +92,7 @@ export default function Upload() {
             {/* Guidelines Upload */}
             <div className="w-full md:w-64">
               <label className="block mb-2 font-medium text-gray-700">
-                Research Proposal Guidelines (PDF)
+                Budget Justification Draft
               </label>
               <input
                 type="file"
@@ -126,10 +135,23 @@ export default function Upload() {
               type="submit"
               form="upload-form"
               className="bg-gradient-to-r from-indigo-600 to-blue-500 text-white px-8 py-3 rounded-xl shadow-lg font-semibold text-lg hover:from-indigo-700 hover:to-blue-600 transition-all duration-200"
+              disabled={isUploading}
             >
-              Submit
+              {isUploading ? 'Uploading...' : 'Submit'}
             </button>
           </div>
+
+          {isUploading && (
+            <div className="w-full mt-4">
+              <div className="h-2 bg-gray-200 rounded-full">
+                <div
+                  className="h-2 bg-blue-500 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-center text-sm mt-2 text-gray-700">Uploading, please wait...</p>
+            </div>
+          )}
 
           {/* Upload success / error messages */}
           {uploadSuccess && (
@@ -139,7 +161,7 @@ export default function Upload() {
               </p>
               <Link href="/textpreview" className="mt-4 inline-block">
                 <button className="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800 transition">
-                  View Budget Info
+                  Next
                 </button>
               </Link>
             </div>
