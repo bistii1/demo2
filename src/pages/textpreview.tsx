@@ -60,20 +60,35 @@ export default function TextPreviewPage() {
     setAnnotatedHtml("");
     setCorrectedHtml("");
 
-    try {
-      const res = await fetch("/api/annotateCompliance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draft: latest.draftText }),
-      });
+    const chunkSize = 6000; // characters, approx. within token limit
+    const chunks = [];
+    for (let i = 0; i < latest.draftText.length; i += chunkSize) {
+      chunks.push(latest.draftText.slice(i, i + chunkSize));
+    }
 
-      if (!res.ok) {
-        throw new Error("Compliance check failed");
+    const annotatedParts: string[] = [];
+    const correctedParts: string[] = [];
+
+    try {
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        console.log(`🔍 Processing chunk ${i + 1}/${chunks.length}`);
+
+        const res = await fetch("/api/annotateCompliance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ draft: chunk }),
+        });
+
+        if (!res.ok) throw new Error("Chunk compliance check failed");
+
+        const data = await res.json();
+        annotatedParts.push(data.annotated);
+        correctedParts.push(data.corrected);
       }
 
-      const data = await res.json();
-      setAnnotatedHtml(data.annotated);
-      setCorrectedHtml(data.corrected);
+      setAnnotatedHtml(annotatedParts.join("<hr />"));
+      setCorrectedHtml(correctedParts.join("<hr />"));
     } catch (err) {
       console.error(err);
       setError("Something went wrong while checking compliance.");
@@ -125,6 +140,13 @@ export default function TextPreviewPage() {
               <h2 className="text-xl font-bold text-blue-700 mb-2">Draft Text</h2>
               <div className="border border-gray-200 rounded-xl bg-gray-50 p-4 max-h-64 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-800">
                 {latest.draftText}
+              </div>
+            </section>
+
+            <section className="mb-8">
+              <h2 className="text-xl font-bold text-green-700 mb-2">Guidelines Text</h2>
+              <div className="border border-gray-200 rounded-xl bg-gray-50 p-4 max-h-64 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-800">
+                {latest.guidelinesText}
               </div>
             </section>
 
