@@ -91,8 +91,8 @@ export default function TextPreviewPage() {
         if (!res.ok) throw new Error("Compliance check failed");
 
         const data = await res.json();
-        annotatedAll += data.annotated;
-        correctedAll += data.corrected;
+        annotatedAll += data.corrected; // flip
+        correctedAll += data.annotated; // flip
       }
 
       setAnnotatedHtml(annotatedAll);
@@ -178,26 +178,26 @@ export default function TextPreviewPage() {
               {error && <p className="text-red-600 mt-2 font-semibold">{error}</p>}
             </div>
 
-            {annotatedHtml && (
+            {correctedHtml && (
               <section className="mb-10">
                 <h2 className="text-lg font-bold text-red-700 mb-2">
                   Annotated Draft (Compliance Highlights)
                 </h2>
                 <div
                   className="border border-red-200 rounded-xl bg-red-50 p-4 max-h-96 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-900"
-                  dangerouslySetInnerHTML={{ __html: annotatedHtml }}
+                  dangerouslySetInnerHTML={{ __html: correctedHtml }}
                 />
               </section>
             )}
 
-            {correctedHtml && (
+            {annotatedHtml && (
               <section className="mb-10">
                 <h2 className="text-lg font-bold text-indigo-700 mb-2">
                   Corrected Draft (Auto-Filled)
                 </h2>
                 <div
                   className="border border-indigo-200 rounded-xl bg-indigo-50 p-4 max-h-96 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-900"
-                  dangerouslySetInnerHTML={{ __html: correctedHtml }}
+                  dangerouslySetInnerHTML={{ __html: annotatedHtml }}
                 />
               </section>
             )}
