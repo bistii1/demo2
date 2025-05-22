@@ -17,8 +17,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Missing draft or guidelines text' });
   }
 
+  // ✅ LOGGING: Inspect incoming request body
+  console.log("📥 Incoming draft (preview):", draft.slice(0, 100));
+  console.log("📥 Incoming guidelines (preview):", guidelines.slice(0, 100));
+
+  // ✅ LOGGING: Check if env variable is accessible
+  if (!process.env.OPENAI_API_KEY) {
+    console.error("❌ Missing OPENAI_API_KEY in environment variables.");
+  } else {
+    console.log("🔑 API key detected:", process.env.OPENAI_API_KEY.slice(0, 5) + "...");
+  }
+
   try {
-    const response = await openai.chat.completions.create({
+    const chatCompletion = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
       messages: [
         {
@@ -42,15 +53,22 @@ ${draft}
 --- GUIDELINE START ---
 ${guidelines}
 --- GUIDELINE END ---
-`.trim(),
+        `.trim(),
         },
       ],
+      temperature: 0.3,
     });
 
-    const annotated = response.choices?.[0]?.message?.content ?? '';
+    console.log("✅ OpenAI API call success");
+    console.log("📤 Response:", chatCompletion);
+
+    const annotated = chatCompletion.choices[0]?.message?.content ?? '';
     res.status(200).json({ annotated });
-  } catch (err) {
-    console.error('Annotation API error:', err);
-    res.status(500).json({ error: 'Failed to annotate compliance' });
+  } catch (err: any) {
+    console.error("❌ Annotation API error:", err);
+    res.status(500).json({
+      error: 'Failed to annotate compliance',
+      detail: err?.message || err,
+    });
   }
 }
