@@ -24,17 +24,15 @@ export default function TextPreviewPage() {
   const { user } = useUser();
   const [latest, setLatest] = useState<Upload | null>(null);
   const [uploads, setUploads] = useState<Upload[]>([]);
-  const [annotatedHtml, setAnnotatedHtml] = useState("");
-  const [correctedHtml, setCorrectedHtml] = useState("");
+  const [annotatedHtml, setAnnotatedHtml] = useState<string>("");
+  const [correctedHtml, setCorrectedHtml] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [budget, setBudget] = useState<BudgetItem[]>([]);
-  const [lengthRatio, setLengthRatio] = useState(100); // percent of draft to send
 
   useEffect(() => {
     async function fetchUploads() {
       if (!user) return;
-
       const res = await fetch("/api/getParsedText");
       const data = await res.json();
 
@@ -66,10 +64,7 @@ export default function TextPreviewPage() {
       const res = await fetch("/api/annotateCompliance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          draft: latest.draftText,
-          lengthRatio,
-        }),
+        body: JSON.stringify({ draft: latest.draftText }),
       });
 
       if (!res.ok) {
@@ -133,28 +128,7 @@ export default function TextPreviewPage() {
               </div>
             </section>
 
-            <section className="mb-8">
-              <h2 className="text-xl font-bold text-green-700 mb-2">Guidelines Text</h2>
-              <div className="border border-gray-200 rounded-xl bg-gray-50 p-4 max-h-64 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-800">
-                {latest.guidelinesText}
-              </div>
-            </section>
-
             <div className="flex flex-col items-center mb-6">
-              <label className="mb-2 font-medium">
-                How much of the draft should be checked?
-              </label>
-              <select
-                value={lengthRatio}
-                onChange={(e) => setLengthRatio(Number(e.target.value))}
-                className="mb-4 px-3 py-1 rounded border border-gray-300"
-              >
-                <option value={25}>25%</option>
-                <option value={50}>50%</option>
-                <option value={75}>75%</option>
-                <option value={100}>100%</option>
-              </select>
-
               <button
                 onClick={handleCheckCompliance}
                 className="bg-gradient-to-r from-red-600 to-pink-500 text-white px-6 py-2 rounded-xl shadow-lg font-semibold text-lg hover:from-red-700 hover:to-pink-600 transition-all duration-200 mb-2"
@@ -180,7 +154,7 @@ export default function TextPreviewPage() {
             {correctedHtml && (
               <section className="mb-10">
                 <h2 className="text-lg font-bold text-indigo-700 mb-2">
-                  Corrected Draft (Auto-Filled Suggestions)
+                  Corrected Draft (Auto-Filled)
                 </h2>
                 <div
                   className="border border-indigo-200 rounded-xl bg-indigo-50 p-4 max-h-96 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-900"
@@ -272,6 +246,12 @@ export default function TextPreviewPage() {
           ← Back to Uploads
         </Link>
       </div>
+      <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        html {
+          font-family: 'Inter', sans-serif;
+        }
+      `}</style>
     </div>
   );
 }
