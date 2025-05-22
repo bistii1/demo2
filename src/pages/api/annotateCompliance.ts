@@ -6,7 +6,10 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Only POST requests allowed' });
   }
@@ -14,54 +17,63 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { draft } = req.body;
 
   if (!draft) {
-    return res.status(400).json({ error: 'Missing draft text in request body.' });
+    return res.status(400).json({ error: 'Missing draft text' });
   }
 
   try {
-    const chatCompletion = await openai.chat.completions.create({
+    const response = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo',
       messages: [
         {
-          role: 'user',
+          role: 'system',
           content: `
-You are a research proposal compliance assistant.
+You are a compliance checker for research proposals. You will receive a section of a research proposal draft. Your tasks are:
+1. Identify compliance issues (e.g., missing abstract, formatting problems, lack of references).
+2. Highlight issues in the text using: <span style="color:red;">[...reason...]</span>
+3. Then, generate a corrected version of the same section, autofilling with reasonable placeholder text where applicable.
 
-You will be given a draft section of a research proposal.
-
-Your tasks:
-1. Highlight missing or non-compliant elements using HTML like this:
-   <span style="color:red;">[Missing Abstract]</span>
-2. Then, provide a corrected version that autofills missing elements using this format:
-   <span style="color:blue;">[Auto-filled Abstract: This research will... etc]</span>
-
-⚠️ Return ONLY this strict JSON format:
+Return a JSON object with:
 {
-  "annotatedHtml": "<annotated HTML version>",
-  "correctedHtml": "<autofilled HTML version>"
+  "annotatedHtml": "...",
+  "correctedHtml": "..."
 }
-DO NOT include explanations, markdown, or any extra text.
-
-Here is the draft:
-"""${draft}"""
           `.trim(),
+        },
+        {
+          role: 'user',
+          content: draft,
         },
       ],
       temperature: 0.3,
     });
 
-    const raw = chatCompletion.choices[0]?.message?.content ?? '';
-    console.log("🪵 Raw model response:", raw);
+    const rawText = response.choices[0]?.message?.content;
 
-    const parsed = JSON.parse(raw);
-    res.status(200).json({
-      annotated: parsed.annotatedHtml,
-      corrected: parsed.correctedHtml,
-    });
-  } catch (err: any) {
-    console.error("❌ Failed to parse JSON from model or other error:", err);
-    res.status(500).json({
+    if (!rawText) {
+      throw new Error('No response from OpenAI.');
+    }
+
+    // Try to parse the response safely
+    const match = rawText.match(/\{[\s\S]*\}/);
+    if (!match) {
+      throw new Error('Failed to parse JSON from OpenAI output.');
+    }
+
+    const parsedResponse = JSON.parse(match[0]);
+    return res.status(200).json(parsedResponse);
+  } catch (err) {
+    if (err instanceof Error) {
+      console.error('❌ Annotation API error:', err.message);
+      return res.status(500).json({
+        error: 'Failed to annotate compliance',
+        detail: err.message,
+      });
+    }
+
+    console.error('❌ Unknown error:', err);
+    return res.status(500).json({
       error: 'Failed to annotate compliance',
-      detail: err?.message || 'Unknown error',
+      detail: 'Unknown error occurred',
     });
   }
 }
