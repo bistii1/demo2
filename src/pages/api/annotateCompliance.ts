@@ -3,38 +3,38 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
+    apiKey: process.env.OPENAI_API_KEY!,
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Only POST requests allowed' });
-  }
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Only POST requests allowed' });
+    }
 
-  const { draft, guidelines } = req.body;
+    const { draft, guidelines } = req.body;
 
-  if (!draft || !guidelines) {
-    return res.status(400).json({ error: 'Missing draft or guidelines text' });
-  }
+    if (!draft || !guidelines) {
+        return res.status(400).json({ error: 'Missing draft or guidelines text' });
+    }
 
-  // ✅ LOGGING: Inspect incoming request body
-  console.log("📥 Incoming draft (preview):", draft.slice(0, 100));
-  console.log("📥 Incoming guidelines (preview):", guidelines.slice(0, 100));
+    // ✅ LOGGING: Inspect incoming request body
+    console.log("📥 Incoming draft (preview):", draft.slice(0, 100));
+    console.log("📥 Incoming guidelines (preview):", guidelines.slice(0, 100));
 
-  // ✅ LOGGING: Check if env variable is accessible
-  if (!process.env.OPENAI_API_KEY) {
-    console.error("❌ Missing OPENAI_API_KEY in environment variables.");
-  } else {
-    console.log("🔑 API key detected:", process.env.OPENAI_API_KEY.slice(0, 5) + "...");
-  }
+    // ✅ LOGGING: Check if env variable is accessible
+    if (!process.env.OPENAI_API_KEY) {
+        console.error("❌ Missing OPENAI_API_KEY in environment variables.");
+    } else {
+        console.log("🔑 API key detected:", process.env.OPENAI_API_KEY.slice(0, 5) + "...");
+    }
 
-  try {
-    const chatCompletion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        {
-          role: 'user',
-          content: `
+    try {
+        const chatCompletion = await openai.chat.completions.create({
+            model: 'gpt-3.5-turbo',
+            messages: [
+                {
+                    role: 'user',
+                    content: `
 You are a proposal compliance checker. The user will give you two documents:
 1. A research proposal draft
 2. A funding guideline
@@ -54,21 +54,29 @@ ${draft}
 ${guidelines}
 --- GUIDELINE END ---
         `.trim(),
-        },
-      ],
-      temperature: 0.3,
-    });
+                },
+            ],
+            temperature: 0.3,
+        });
 
-    console.log("✅ OpenAI API call success");
-    console.log("📤 Response:", chatCompletion);
+        console.log("✅ OpenAI API call success");
+        console.log("📤 Response:", chatCompletion);
 
-    const annotated = chatCompletion.choices[0]?.message?.content ?? '';
-    res.status(200).json({ annotated });
-  } catch (err: any) {
-    console.error("❌ Annotation API error:", err);
-    res.status(500).json({
-      error: 'Failed to annotate compliance',
-      detail: err?.message || err,
-    });
-  }
+        const annotated = chatCompletion.choices[0]?.message?.content ?? '';
+        res.status(200).json({ annotated });
+    } catch (err: unknown) {
+        if (err instanceof Error) {
+            console.error("❌ Annotation API error:", err.message);
+            res.status(500).json({
+                error: 'Failed to annotate compliance',
+                detail: err.message,
+            });
+        } else {
+            console.error("❌ Unknown error:", err);
+            res.status(500).json({
+                error: 'Failed to annotate compliance',
+                detail: 'Unknown error occurred',
+            });
+        }
+    }
 }
