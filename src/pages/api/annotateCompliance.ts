@@ -42,20 +42,31 @@ Return a JSON string in this format:
 --- DRAFT START ---
 ${draft}
 --- DRAFT END ---
-          `.trim(),
+`.trim(),
         },
       ],
       temperature: 0.3,
     });
 
     console.log("✅ OpenAI API call success");
-    const jsonText = chatCompletion.choices[0]?.message?.content || '{}';
-    const parsed = JSON.parse(jsonText);
 
-    res.status(200).json({
-      annotated: parsed.annotatedHtml,
-      corrected: parsed.correctedHtml,
-    });
+    const rawResponse = chatCompletion.choices[0]?.message?.content || '';
+
+    try {
+      const parsed = JSON.parse(rawResponse);
+      res.status(200).json({
+        annotated: parsed.annotatedHtml,
+        corrected: parsed.correctedHtml,
+      });
+    } catch (jsonErr) {
+      console.error("❌ Failed to parse JSON from model:", jsonErr);
+      console.log("📝 Raw response:", rawResponse);
+      res.status(500).json({
+        error: 'Invalid response format from OpenAI',
+        detail: rawResponse,
+      });
+    }
+
   } catch (err: unknown) {
     if (err instanceof Error) {
       console.error("❌ Annotation API error:", err.message);
