@@ -103,156 +103,139 @@ export default function TextPreviewPage() {
   const total = budget.reduce((sum, item) => sum + (item.salary * item.effort) / 100 + item.fringe, 0);
 
   return (
-    <div style={{ background: "#fff", color: "#000", minHeight: "100vh", padding: "2rem" }}>
-      <h1 style={{ fontSize: "1.8rem", fontWeight: "bold", marginBottom: "1rem" }}>Text Extract Preview</h1>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-100 to-blue-200 py-10 px-2 font-sans">
+      <div className="max-w-4xl mx-auto bg-white/95 rounded-3xl shadow-2xl p-8 md:p-12">
+        <h1 className="text-3xl md:text-4xl font-extrabold mb-8 text-center text-indigo-800 tracking-tight">
+          Text Extract Preview
+        </h1>
 
-      {latest ? (
-        <>
-          <section style={{ marginBottom: "2rem" }}>
-            <h2 style={{ color: "#1d4ed8" }}>Draft Text</h2>
-            <div
-              style={{
-                border: "1px solid #ccc",
-                padding: "1rem",
-                borderRadius: "8px",
-                whiteSpace: "pre-wrap",
-                background: "#f9f9f9",
-                maxHeight: "300px",
-                overflowY: "auto",
-              }}
-            >
-              {latest.draftText}
-            </div>
-          </section>
-
-          <section style={{ marginBottom: "2rem" }}>
-            <h2 style={{ color: "#15803d" }}>Guidelines Text</h2>
-            <div
-              style={{
-                border: "1px solid #ccc",
-                padding: "1rem",
-                borderRadius: "8px",
-                whiteSpace: "pre-wrap",
-                background: "#f9f9f9",
-                maxHeight: "300px",
-                overflowY: "auto",
-              }}
-            >
-              {latest.guidelinesText}
-            </div>
-          </section>
-
-          <button
-            onClick={handleCheckCompliance}
-            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 mb-4"
-            disabled={loading}
-          >
-            {loading ? "Checking..." : "Check Compliance"}
-          </button>
-
-          {error && <p className="text-red-500">{error}</p>}
-
-          {annotatedHtml && (
-            <section style={{ marginTop: "2rem" }}>
-              <h2 style={{ color: "#dc2626", marginBottom: "0.5rem" }}>
-                Annotated Draft (Compliance Highlights)
-              </h2>
-              <div
-                style={{
-                  border: "1px solid #ccc",
-                  padding: "1rem",
-                  borderRadius: "8px",
-                  background: "#fff0f0",
-                  maxHeight: "400px",
-                  overflowY: "auto",
-                }}
-                dangerouslySetInnerHTML={{ __html: annotatedHtml }}
-              />
+        {latest ? (
+          <>
+            <section className="mb-8">
+              <h2 className="text-xl font-bold text-blue-700 mb-2">Draft Text</h2>
+              <div className="border border-gray-200 rounded-xl bg-gray-50 p-4 max-h-64 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-800">
+                {latest.draftText}
+              </div>
             </section>
-          )}
 
-          <div className="bg-white text-black p-6 border rounded mt-8">
-            <h2 className="text-xl font-bold mb-4">Build Your Budget</h2>
-            <table className="w-full mb-4 border text-sm">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border px-2 py-1">Role</th>
-                  <th className="border px-2 py-1">Name</th>
-                  <th className="border px-2 py-1">% Effort</th>
-                  <th className="border px-2 py-1">Salary</th>
-                  <th className="border px-2 py-1">Fringe</th>
-                  <th className="border px-2 py-1">Category</th>
-                  <th className="border px-2 py-1">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {budget.map((item, idx) => (
-                  <tr key={idx}>
-                    {(Object.keys(item) as (keyof BudgetItem)[]).map((key) => (
-                      <td key={String(key)} className="border px-2 py-1">
-                        <input
-                          className="w-full border px-1 py-0.5"
-                          type={typeof item[key] === "number" ? "number" : "text"}
-                          value={item[key] as string | number}
-                          onChange={(e) =>
-                            handleBudgetChange(
-                              idx,
-                              key,
-                              typeof item[key] === "number"
-                                ? Number(e.target.value)
-                                : (e.target.value as BudgetItem[typeof key])
-                            )
-                          }
-                        />
-                      </td>
-                    ))}
+            <section className="mb-8">
+              <h2 className="text-xl font-bold text-green-700 mb-2">Guidelines Text</h2>
+              <div className="border border-gray-200 rounded-xl bg-gray-50 p-4 max-h-64 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-800">
+                {latest.guidelinesText}
+              </div>
+            </section>
+
+            <div className="flex flex-col items-center mb-6">
+              <button
+                onClick={handleCheckCompliance}
+                className="bg-gradient-to-r from-red-600 to-pink-500 text-white px-6 py-2 rounded-xl shadow-lg font-semibold text-lg hover:from-red-700 hover:to-pink-600 transition-all duration-200 mb-2"
+                disabled={loading}
+              >
+                {loading ? "Checking..." : "Check Compliance"}
+              </button>
+              {error && <p className="text-red-600 mt-2 font-semibold">{error}</p>}
+            </div>
+
+            {annotatedHtml && (
+              <section className="mb-10">
+                <h2 className="text-lg font-bold text-red-700 mb-2">
+                  Annotated Draft (Compliance Highlights)
+                </h2>
+                <div
+                  className="border border-red-200 rounded-xl bg-red-50 p-4 max-h-96 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-900"
+                  dangerouslySetInnerHTML={{ __html: annotatedHtml }}
+                />
+              </section>
+            )}
+
+            <div className="bg-white/90 text-black p-6 border border-gray-200 rounded-2xl shadow mb-10">
+              <h2 className="text-xl font-bold mb-4 text-blue-900">Build Your Budget</h2>
+              <table className="w-full mb-4 border text-sm rounded-xl overflow-hidden">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border px-2 py-1">Role</th>
+                    <th className="border px-2 py-1">Name</th>
+                    <th className="border px-2 py-1">% Effort</th>
+                    <th className="border px-2 py-1">Salary</th>
+                    <th className="border px-2 py-1">Fringe</th>
+                    <th className="border px-2 py-1">Category</th>
+                    <th className="border px-2 py-1">Notes</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <button
-              onClick={handleAddRow}
-              className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600 mb-2"
-            >
-              + Add Row
-            </button>
-            <p className="font-semibold">Total: ${total.toFixed(2)}</p>
-          </div>
-        </>
-      ) : (
-        <p>No uploads found.</p>
-      )}
-
-      {uploads.length > 1 && (
-        <section>
-          <h2 style={{ fontSize: "1.2rem", fontWeight: "bold", marginTop: "2rem" }}>Past Uploads</h2>
-          <ul style={{ marginTop: "1rem" }}>
-            {uploads.slice(1).map((upload) => (
-              <li key={upload._id}>
+                </thead>
+                <tbody>
+                  {budget.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-blue-50">
+                      {(Object.keys(item) as (keyof BudgetItem)[]).map((key) => (
+                        <td key={String(key)} className="border px-2 py-1">
+                          <input
+                            className="w-full border border-gray-300 rounded px-1 py-0.5 focus:ring-2 focus:ring-blue-300 transition"
+                            type={typeof item[key] === "number" ? "number" : "text"}
+                            value={item[key] as string | number}
+                            onChange={(e) =>
+                              handleBudgetChange(
+                                idx,
+                                key,
+                                typeof item[key] === "number"
+                                  ? Number(e.target.value)
+                                  : (e.target.value as BudgetItem[typeof key])
+                              )
+                            }
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="flex items-center justify-between">
                 <button
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "#2563eb",
-                    cursor: "pointer",
-                    textDecoration: "underline",
-                  }}
-                  onClick={() => {
-                    setLatest(upload);
-                    setAnnotatedHtml("");
-                  }}
+                  onClick={handleAddRow}
+                  className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600 shadow transition mb-2"
                 >
-                  View Upload from {new Date(upload.createdAt).toLocaleString()}
+                  + Add Row
                 </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+                <p className="font-semibold text-lg">Total: ${total.toFixed(2)}</p>
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="text-center text-gray-600">No uploads found.</p>
+        )}
 
-      <Link href="/upload" style={{ display: "block", marginTop: "2rem", color: "#2563eb" }}>
-        ← Back to Uploads
-      </Link>
+        {uploads.length > 1 && (
+          <section>
+            <h2 className="text-lg font-bold text-indigo-700 mt-8 mb-2">Past Uploads</h2>
+            <ul className="space-y-2">
+              {uploads.slice(1).map((upload) => (
+                <li key={upload._id}>
+                  <button
+                    className="text-blue-700 hover:underline font-medium"
+                    onClick={() => {
+                      setLatest(upload);
+                      setAnnotatedHtml("");
+                    }}
+                  >
+                    View Upload from {new Date(upload.createdAt).toLocaleString()}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        <Link
+          href="/upload"
+          className="block mt-10 text-blue-600 hover:underline text-center font-semibold text-lg"
+        >
+          ← Back to Uploads
+        </Link>
+      </div>
+      <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        html {
+          font-family: 'Inter', sans-serif;
+        }
+      `}</style>
     </div>
   );
 }
