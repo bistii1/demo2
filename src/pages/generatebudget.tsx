@@ -1,4 +1,4 @@
-// pages/generateBudget.tsx
+// pages/generatebudget.tsx
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -28,7 +28,7 @@ export default function GenerateBudgetPage() {
       const res = await fetch("/api/generateBudget", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proposalText }),
+        body: JSON.stringify({ draft: proposalText }), // ✅ FIXED
       });
       if (!res.ok) throw new Error("Failed to generate budget");
       const data = await res.json();
@@ -41,6 +41,7 @@ export default function GenerateBudgetPage() {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-100 to-blue-200 py-10 px-4 font-sans">
