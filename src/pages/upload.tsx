@@ -56,9 +56,9 @@ export default function Upload() {
 
   const handleFileChange =
     (setter: (file: File | null) => void) =>
-    (e: ChangeEvent<HTMLInputElement>) => {
-      setter(e.target.files?.[0] || null);
-    };
+      (e: ChangeEvent<HTMLInputElement>) => {
+        setter(e.target.files?.[0] || null);
+      };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-100 to-blue-200 text-blue-900 font-sans">
@@ -153,22 +153,26 @@ export default function Upload() {
             </div>
           )}
 
-          {/* Upload success / error messages */}
           {uploadSuccess && (
-            <div className="flex flex-col items-center mt-6">
+            <div className="flex flex-col items-center mt-6 space-y-4">
               <p className="text-green-600 font-semibold">
                 Upload successful! 🎉
               </p>
-              <Link href="/textpreview" className="mt-4 inline-block">
-                <button className="bg-black text-white px-6 py-2 rounded-lg hover:bg-gray-800 transition">
-                  Next
-                </button>
-              </Link>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Link href="/textpreview">
+                  <button className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-2 rounded-lg shadow hover:from-red-600 hover:to-pink-600 transition">
+                    Check Compliance
+                  </button>
+                </Link>
+                <Link href="/generatebudget">
+                  <button className="bg-gradient-to-r from-blue-600 to-indigo-500 text-white px-6 py-2 rounded-lg shadow hover:from-blue-700 hover:to-indigo-600 transition">
+                    Generate Budget
+                  </button>
+                </Link>
+              </div>
             </div>
           )}
-          {error && (
-            <p className="text-red-600 mt-6 font-semibold text-center">{error}</p>
-          )}
+
         </div>
       </main>
 

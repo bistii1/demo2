@@ -10,16 +10,6 @@ interface Upload {
   createdAt: string;
 }
 
-interface BudgetItem {
-  role: string;
-  name: string;
-  effort: number;
-  salary: number;
-  fringe: number;
-  category: string;
-  notes: string;
-}
-
 export default function TextPreviewPage() {
   const { user } = useUser();
   const [latest, setLatest] = useState<Upload | null>(null);
@@ -28,7 +18,6 @@ export default function TextPreviewPage() {
   const [correctedHtml, setCorrectedHtml] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [budget, setBudget] = useState<BudgetItem[]>([]);
   const [chunkProgress, setChunkProgress] = useState({ current: 0, total: 0 });
   const [estimatedSeconds, setEstimatedSeconds] = useState(0);
 
@@ -93,7 +82,6 @@ export default function TextPreviewPage() {
         const data = await res.json();
         annotatedAll += data.annotatedHtml;
         correctedAll += data.correctedHtml;
-
       }
 
       setAnnotatedHtml(annotatedAll);
@@ -107,36 +95,6 @@ export default function TextPreviewPage() {
       setEstimatedSeconds(0);
     }
   };
-
-  const handleAddRow = () => {
-    setBudget((prev) => [
-      ...prev,
-      {
-        role: "",
-        name: "",
-        effort: 0,
-        salary: 0,
-        fringe: 0,
-        category: "",
-        notes: "",
-      },
-    ]);
-  };
-
-  const handleBudgetChange = <K extends keyof BudgetItem>(
-    index: number,
-    field: K,
-    value: BudgetItem[K]
-  ) => {
-    const updated = [...budget];
-    updated[index][field] = value;
-    setBudget(updated);
-  };
-
-  const total = budget.reduce(
-    (sum, item) => sum + (item.salary * item.effort) / 100 + item.fringe,
-    0
-  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-100 to-blue-200 py-10 px-2 font-sans">
@@ -181,11 +139,11 @@ export default function TextPreviewPage() {
 
             {correctedHtml && (
               <section className="mb-10">
-                <h2 className="text-lg font-bold text-red-700 mb-2">
-                  Annotated Draft (Compliance Highlights)
+                <h2 className="text-lg font-bold text-indigo-700 mb-2">
+                  Corrected Draft (Auto-Filled)
                 </h2>
                 <div
-                  className="border border-red-200 rounded-xl bg-red-50 p-4 max-h-96 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-900"
+                  className="border border-indigo-200 rounded-xl bg-indigo-50 p-4 max-h-96 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-900"
                   dangerouslySetInnerHTML={{ __html: correctedHtml }}
                 />
               </section>
@@ -193,65 +151,15 @@ export default function TextPreviewPage() {
 
             {annotatedHtml && (
               <section className="mb-10">
-                <h2 className="text-lg font-bold text-indigo-700 mb-2">
-                  Corrected Draft (Auto-Filled)
+                <h2 className="text-lg font-bold text-red-700 mb-2">
+                  Annotated Draft (Compliance Highlights)
                 </h2>
                 <div
-                  className="border border-indigo-200 rounded-xl bg-indigo-50 p-4 max-h-96 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-900"
+                  className="border border-red-200 rounded-xl bg-red-50 p-4 max-h-96 overflow-y-auto shadow-inner whitespace-pre-wrap text-gray-900"
                   dangerouslySetInnerHTML={{ __html: annotatedHtml }}
                 />
               </section>
             )}
-
-            <div className="bg-white/90 text-black p-6 border border-gray-200 rounded-2xl shadow mb-10">
-              <h2 className="text-xl font-bold mb-4 text-blue-900">Build Your Budget</h2>
-              <table className="w-full mb-4 border text-sm rounded-xl overflow-hidden">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border px-2 py-1">Role</th>
-                    <th className="border px-2 py-1">Name</th>
-                    <th className="border px-2 py-1">% Effort</th>
-                    <th className="border px-2 py-1">Salary</th>
-                    <th className="border px-2 py-1">Fringe</th>
-                    <th className="border px-2 py-1">Category</th>
-                    <th className="border px-2 py-1">Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {budget.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-blue-50">
-                      {(Object.keys(item) as (keyof BudgetItem)[]).map((key) => (
-                        <td key={String(key)} className="border px-2 py-1">
-                          <input
-                            className="w-full border border-gray-300 rounded px-1 py-0.5 focus:ring-2 focus:ring-blue-300 transition"
-                            type={typeof item[key] === "number" ? "number" : "text"}
-                            value={item[key] as string | number}
-                            onChange={(e) =>
-                              handleBudgetChange(
-                                idx,
-                                key,
-                                typeof item[key] === "number"
-                                  ? Number(e.target.value)
-                                  : (e.target.value as BudgetItem[typeof key])
-                              )
-                            }
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={handleAddRow}
-                  className="bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600 shadow transition mb-2"
-                >
-                  + Add Row
-                </button>
-                <p className="font-semibold text-lg">Total: ${total.toFixed(2)}</p>
-              </div>
-            </div>
           </>
         ) : (
           <p className="text-center text-gray-600">No uploads found.</p>
