@@ -34,8 +34,9 @@ content: chunk,
 
 const summary = completion.choices[0]?.message?.content || '';
 res.status(200).json({ summary });
-} catch (err: any) {
-console.error('🔴 summarizeChunk error:', err);
-res.status(500).json({ error: 'Chunk summarization failed', detail: err.message });
+} catch (err: unknown) {
+const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+console.error('🔴 summarizeChunk error:', errorMessage);
+return res.status(500).json({ error: 'Chunk summarization failed', detail: errorMessage });
 }
 }

@@ -43,8 +43,9 @@ const content = completion.choices[0]?.message?.content?.trim() || '';
 if (!content) throw new Error('Empty response from OpenAI');
 
 res.status(200).json({ budgetResponse: content });
-} catch (err: any) {
-console.error('🔴 generateBudgetFinal error:', err);
-res.status(500).json({ error: 'Budget generation failed', detail: err.message });
+} catch (err: unknown) {
+const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+console.error('🔴 generateBudgetFinal error:', errorMessage);
+return res.status(500).json({ error: 'Budget generation failed', detail: errorMessage });
 }
 }
