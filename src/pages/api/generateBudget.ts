@@ -19,54 +19,53 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4',
-      temperature: 0.5,
+      temperature: 0.4,
       messages: [
         {
           role: 'system',
           content: `
-You are a grant budget expert. Given a research proposal draft, your job is to:
+You are a grant budget expert. Your task is to:
+1. Estimate necessary personnel/resources (senior/junior scientists & engineers, technicians, travel, equipment).
+2. Return:
+   - A valid HTML table (with columns: Role, Quantity, Year 1 Cost, Year 2 Cost, Year 3 Cost, Total)
+   - A written justification explaining *why* these items are needed.
 
-1. **Estimate the needed roles and resources**:
-   - Scientists (senior/junior)
-   - Engineers (senior/junior)
-   - Technicians
-   - Travel
-   - Equipment (if any)
-
-2. **Generate an HTML budget table** for 3 years with columns:
-   - Role
-   - Quantity
-   - Year 1 Cost
-   - Year 2 Cost
-   - Year 3 Cost
-   - Total
-
-3. **Write a clear budget justification** in plain text that supports the table, explaining why these roles/resources are needed.
-
-Return the result in JSON format with two fields:
-- "tableHtml": the HTML for the budget table
-- "justificationText": the justification paragraph(s)
+You MUST return valid JSON with:
+{
+  "tableHtml": "<table>...</table>",
+  "justificationText": "string of explanation"
+}
           `.trim(),
         },
         {
           role: 'user',
-          content: `Here is the proposal:\n\n${draft}`,
+          content: `Here is the proposal draft:\n\n${draft}`,
         },
       ],
     });
 
-    const response = completion.choices[0]?.message?.content;
+    const responseText = completion.choices[0]?.message?.content;
 
-    if (!response) {
-      throw new Error('No content returned from OpenAI');
+    if (!responseText) {
+      throw new Error('No content returned from OpenAI.');
     }
 
-    // Extract HTML table and justification from the response
-    const tableMatch = response.match(/<table[\s\S]*?<\/table>/i);
-    const tableHtml = tableMatch ? tableMatch[0] : '<p>No table found.</p>';
-    const justificationText = response.replace(tableHtml, '').trim();
+    // Try to parse the content as JSON
+    let parsed;
+    try {
+      parsed = JSON.parse(responseText);
+    } catch {
+      // Fallback: try to extract <table> and everything else as justification
+      const tableMatch = responseText.match(/<table[\s\S]*?<\/table>/i);
+      const tableHtml = tableMatch ? tableMatch[0] : '<p>No table found.</p>';
+      const justificationText = responseText.replace(tableHtml, '').trim() || 'No justification provided.';
+      return res.status(200).json({ tableHtml, justificationText });
+    }
 
-    return res.status(200).json({ tableHtml, justificationText });
+    return res.status(200).json({
+      tableHtml: parsed.tableHtml || '<p>No table returned.</p>',
+      justificationText: parsed.justificationText || 'No justification provided.',
+    });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     console.error('🔴 Budget Generation Error:', errorMessage);
