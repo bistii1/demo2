@@ -11,13 +11,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Only POST requests allowed' });
   }
 
-  const { draft } = req.body;
+  const { draftChunks } = req.body;
 
-  if (!draft || typeof draft !== 'string') {
-    return res.status(400).json({ error: 'Missing or invalid draft text' });
+  if (!draftChunks || !Array.isArray(draftChunks)) {
+    return res.status(400).json({ error: 'Missing or invalid draft chunks' });
   }
 
   try {
+    const fullDraft = draftChunks.join('\n\n');
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4',
       temperature: 0.5,
@@ -45,7 +47,7 @@ Respond only in this format:
         },
         {
           role: 'user',
-          content: `Here is the proposal:\n\n${draft}`,
+          content: `Here is the full proposal composed from all chunks:\n\n${fullDraft}`,
         },
       ],
     });

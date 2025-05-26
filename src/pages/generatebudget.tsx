@@ -1,9 +1,10 @@
+// pages/generatebudget.tsx
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
 export default function GenerateBudgetPage() {
   const [proposalText, setProposalText] = useState("");
-  const [budgetTable, setBudgetTable] = useState("");
+  const [budgetResponse, setBudgetResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [chunkProgress, setChunkProgress] = useState({ current: 0, total: 0 });
@@ -23,7 +24,7 @@ export default function GenerateBudgetPage() {
 
     setLoading(true);
     setError("");
-    setBudgetTable("");
+    setBudgetResponse("");
     setChunkProgress({ current: 0, total: 0 });
 
     try {
@@ -33,26 +34,18 @@ export default function GenerateBudgetPage() {
         chunks.push(proposalText.slice(i, i + CHUNK_SIZE));
       }
 
-      setChunkProgress({ current: 0, total: chunks.length });
+      setChunkProgress({ current: chunks.length, total: chunks.length });
 
-      let combinedResponse = "";
+      const res = await fetch("/api/generateBudget", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftChunks: chunks }),
+      });
 
-      for (let i = 0; i < chunks.length; i++) {
-        setChunkProgress({ current: i + 1, total: chunks.length });
+      if (!res.ok) throw new Error("Failed to generate budget");
 
-        const res = await fetch("/api/generateBudget", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ draft: chunks[i] }),
-        });
-
-        if (!res.ok) throw new Error("Failed to generate budget");
-
-        const data = await res.json();
-        combinedResponse += `\n\n${data.budgetResponse || "[No response for this chunk]"}`;
-      }
-
-      setBudgetTable(combinedResponse.trim());
+      const data = await res.json();
+      setBudgetResponse(data.budgetResponse || "No response generated.");
     } catch (err) {
       console.error(err);
       setError("Something went wrong generating the budget.");
@@ -86,17 +79,17 @@ export default function GenerateBudgetPage() {
 
         {chunkProgress.total > 0 && (
           <div className="text-sm text-center text-gray-700 mb-4">
-            Processing chunk {chunkProgress.current} of {chunkProgress.total}
+            Processing {chunkProgress.current} chunks...
           </div>
         )}
 
         {error && <p className="text-red-600 text-center mb-4">{error}</p>}
 
-        {budgetTable && (
+        {budgetResponse && (
           <section>
-            <h2 className="text-lg font-bold text-green-800 mb-2">Budget Output</h2>
+            <h2 className="text-lg font-bold text-green-800 mb-2">Budget Estimate & Justification</h2>
             <div className="border rounded-xl bg-green-50 p-4 shadow-inner text-sm whitespace-pre-wrap text-green-900">
-              {budgetTable}
+              {budgetResponse}
             </div>
           </section>
         )}
