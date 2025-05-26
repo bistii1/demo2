@@ -173,6 +173,13 @@ export default function Upload() {
             </div>
           )}
 
+
+          {error && (
+            <p className="text-red-600 mt-6 font-semibold text-center">
+              {error}
+            </p>
+          )}
+
         </div>
       </main>
 
