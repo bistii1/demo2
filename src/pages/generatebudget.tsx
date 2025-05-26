@@ -1,11 +1,9 @@
-// pages/generatebudget.tsx
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
 export default function GenerateBudgetPage() {
   const [proposalText, setProposalText] = useState("");
   const [budgetTable, setBudgetTable] = useState("");
-  const [justification, setJustification] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [chunkProgress, setChunkProgress] = useState({ current: 0, total: 0 });
@@ -26,11 +24,10 @@ export default function GenerateBudgetPage() {
     setLoading(true);
     setError("");
     setBudgetTable("");
-    setJustification("");
     setChunkProgress({ current: 0, total: 0 });
 
     try {
-      const CHUNK_SIZE = 6000; // characters
+      const CHUNK_SIZE = 6000;
       const chunks = [];
       for (let i = 0; i < proposalText.length; i += CHUNK_SIZE) {
         chunks.push(proposalText.slice(i, i + CHUNK_SIZE));
@@ -38,8 +35,7 @@ export default function GenerateBudgetPage() {
 
       setChunkProgress({ current: 0, total: chunks.length });
 
-      let combinedTable = "";
-      let combinedJustification = "";
+      let combinedResponse = "";
 
       for (let i = 0; i < chunks.length; i++) {
         setChunkProgress({ current: i + 1, total: chunks.length });
@@ -53,12 +49,10 @@ export default function GenerateBudgetPage() {
         if (!res.ok) throw new Error("Failed to generate budget");
 
         const data = await res.json();
-        combinedTable += data.budgetTable || "";
-        combinedJustification += `\n${data.justification}`;
+        combinedResponse += `\n\n${data.budgetResponse || "[No response for this chunk]"}`;
       }
 
-      setBudgetTable(combinedTable);
-      setJustification(combinedJustification);
+      setBudgetTable(combinedResponse.trim());
     } catch (err) {
       console.error(err);
       setError("Something went wrong generating the budget.");
@@ -99,20 +93,10 @@ export default function GenerateBudgetPage() {
         {error && <p className="text-red-600 text-center mb-4">{error}</p>}
 
         {budgetTable && (
-          <section className="mb-6">
-            <h2 className="text-lg font-bold text-blue-800 mb-2">Estimated Budget Table</h2>
-            <div
-              className="border rounded-xl bg-blue-50 p-4 shadow-inner overflow-x-auto text-sm"
-              dangerouslySetInnerHTML={{ __html: budgetTable }}
-            />
-          </section>
-        )}
-
-        {justification && (
           <section>
-            <h2 className="text-lg font-bold text-green-800 mb-2">Budget Justification</h2>
-            <div className="border rounded-xl bg-green-50 p-4 shadow-inner text-sm whitespace-pre-wrap">
-              {justification}
+            <h2 className="text-lg font-bold text-green-800 mb-2">Budget Output</h2>
+            <div className="border rounded-xl bg-green-50 p-4 shadow-inner text-sm whitespace-pre-wrap text-green-900">
+              {budgetTable}
             </div>
           </section>
         )}
