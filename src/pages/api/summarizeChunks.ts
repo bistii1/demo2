@@ -33,6 +33,8 @@ content: chunk,
 });
 
 const summary = completion.choices[0]?.message?.content || '';
+console.log('🧩 Summary generated for chunk:', summary);
+
 res.status(200).json({ summary });
 } catch (err: unknown) {
 const errorMessage = err instanceof Error ? err.message : 'Unknown error';

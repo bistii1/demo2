@@ -40,6 +40,7 @@ content: combined,
 });
 
 const content = completion.choices[0]?.message?.content?.trim() || '';
+console.log('🔷 OpenAI response content:', content);
 if (!content) throw new Error('Empty response from OpenAI');
 
 res.status(200).json({ budgetResponse: content });

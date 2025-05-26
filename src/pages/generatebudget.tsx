@@ -50,10 +50,13 @@ export default function GenerateBudgetPage() {
         if (!res.ok) throw new Error('Chunk summarization failed');
 
         const data = await res.json();
+        console.log('🟡 Chunk Summary:', data.summary);
         summaries.push(data.summary || '');
       }
 
-      const finalRes = await fetch('/api/generateBudgetFinal', {
+      console.log('🟢 Summaries to budget endpoint:', summaries); 
+
+      const finalRes = await fetch('/api/generateBudget', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ summaries }),
@@ -62,11 +65,12 @@ export default function GenerateBudgetPage() {
       if (!finalRes.ok) throw new Error('Final budget generation failed');
 
       const finalData = await finalRes.json();
+      console.log('🟢 Budget Response:', finalData);
       setBudgetResponse(finalData.budgetResponse);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.error(errorMessage);
-      setError('Something went wrong generating the budget.');
+      console.error('🔴 Frontend Error:', errorMessage);
+      setError(`Something went wrong generating the budget: ${errorMessage}`);
     } finally {
       setLoading(false);
       setChunkProgress({ current: 0, total: 0 });
@@ -78,9 +82,6 @@ export default function GenerateBudgetPage() {
       <div className="max-w-4xl mx-auto bg-white/95 rounded-3xl shadow-xl p-8 md:p-12">
         <h1 className="text-3xl font-extrabold text-indigo-800 text-center mb-6">Generate Budget</h1>
 
-        php-template
-        Copy
-        Edit
         <section className="mb-6">
           <h2 className="text-xl font-bold text-gray-800 mb-2">Proposal Text</h2>
           <div className="border rounded-xl p-4 bg-gray-50 shadow-inner max-h-64 overflow-y-auto whitespace-pre-wrap text-sm text-blue-900">
