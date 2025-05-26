@@ -91,8 +91,9 @@ export default function TextPreviewPage() {
         if (!res.ok) throw new Error("Compliance check failed");
 
         const data = await res.json();
-        annotatedAll += data.corrected; // flip
-        correctedAll += data.annotated; // flip
+        annotatedAll += data.annotatedHtml;
+        correctedAll += data.correctedHtml;
+
       }
 
       setAnnotatedHtml(annotatedAll);
