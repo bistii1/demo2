@@ -74,7 +74,7 @@ Please return a response wrapped in a JSON object like this:
         tableHtml: parsed.tableHtml || '<p>No table found.</p>',
         justificationText: parsed.justificationText || 'No justification provided.',
       });
-    } catch (jsonErr) {
+    } catch {
       // 2. Fallback: extract table & rest
       const tableMatch = rawContent.match(/<table[\s\S]*?<\/table>/i);
       const tableHtml = tableMatch?.[0] || '<p>No table found.</p>';
