@@ -24,48 +24,64 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         {
           role: 'system',
           content: `
-You are a grant budget expert. Your task is to:
-1. Estimate necessary personnel/resources (senior/junior scientists & engineers, technicians, travel, equipment).
-2. Return:
-   - A valid HTML table (with columns: Role, Quantity, Year 1 Cost, Year 2 Cost, Year 3 Cost, Total)
-   - A written justification explaining *why* these items are needed.
+You are a grant budget expert. Based on the provided research proposal, your job is to:
 
-You MUST return valid JSON with:
+1. Estimate the needed roles and resources:
+   - Scientists (senior/junior)
+   - Engineers (senior/junior)
+   - Technicians
+   - Travel
+   - Equipment (if any)
+
+2. Generate a valid HTML table with columns:
+   - Role
+   - Quantity
+   - Year 1 Cost
+   - Year 2 Cost
+   - Year 3 Cost
+   - Total
+
+3. Write a short, plain-text budget justification explaining why these items are needed.
+
+Please return a response wrapped in a JSON object like this:
+
 {
   "tableHtml": "<table>...</table>",
-  "justificationText": "string of explanation"
+  "justificationText": "Justification goes here."
 }
           `.trim(),
         },
         {
           role: 'user',
-          content: `Here is the proposal draft:\n\n${draft}`,
+          content: `Here is the proposal:\n\n${draft}`,
         },
       ],
     });
 
-    const responseText = completion.choices[0]?.message?.content;
+    const rawContent = completion.choices[0]?.message?.content;
 
-    if (!responseText) {
-      throw new Error('No content returned from OpenAI.');
+    if (!rawContent) {
+      throw new Error('No content returned from OpenAI');
     }
 
-    // Try to parse the content as JSON
-    let parsed;
+    // 1. Try parsing JSON directly (with or without code block)
+    const jsonMatch = rawContent.match(/```json([\s\S]*?)```/i);
+    const jsonText = jsonMatch ? jsonMatch[1].trim() : rawContent;
+
     try {
-      parsed = JSON.parse(responseText);
-    } catch {
-      // Fallback: try to extract <table> and everything else as justification
-      const tableMatch = responseText.match(/<table[\s\S]*?<\/table>/i);
-      const tableHtml = tableMatch ? tableMatch[0] : '<p>No table found.</p>';
-      const justificationText = responseText.replace(tableHtml, '').trim() || 'No justification provided.';
+      const parsed = JSON.parse(jsonText);
+      return res.status(200).json({
+        tableHtml: parsed.tableHtml || '<p>No table found.</p>',
+        justificationText: parsed.justificationText || 'No justification provided.',
+      });
+    } catch (jsonErr) {
+      // 2. Fallback: extract table & rest
+      const tableMatch = rawContent.match(/<table[\s\S]*?<\/table>/i);
+      const tableHtml = tableMatch?.[0] || '<p>No table found.</p>';
+      const justificationText = rawContent.replace(tableHtml, '').trim() || 'No justification provided.';
+
       return res.status(200).json({ tableHtml, justificationText });
     }
-
-    return res.status(200).json({
-      tableHtml: parsed.tableHtml || '<p>No table returned.</p>',
-      justificationText: parsed.justificationText || 'No justification provided.',
-    });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     console.error('🔴 Budget Generation Error:', errorMessage);
