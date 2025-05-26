@@ -34,22 +34,14 @@ You are a grant budget expert. Given a research proposal draft, your job is to:
    - Travel
    - Equipment (if any)
 
-2. Generate an HTML budget table for 3 years with columns:
-   - Role
-   - Quantity
-   - Year 1 Cost
-   - Year 2 Cost
-   - Year 3 Cost
-   - Total
+2. Present the budget in a bulleted list format (not a table).
 
-3. Write a clear budget justification in plain text that supports the table, explaining why these roles/resources are needed.
+3. Provide a budget justification section in plain text.
 
-Return ONLY a raw JSON object in this format:
-{
-  "tableHtml": "<table>...</table>",
-  "justificationText": "..."
-}
-`.trim(),
+Respond only in this format:
+- Bullet list of estimated budget items with yearly cost estimates
+- A short budget justification paragraph
+          `.trim(),
         },
         {
           role: 'user',
@@ -58,25 +50,13 @@ Return ONLY a raw JSON object in this format:
       ],
     });
 
-    const rawContent = completion.choices[0]?.message?.content ?? '';
+    const content = completion.choices[0]?.message?.content ?? '';
 
-    try {
-      const jsonStart = rawContent.indexOf('{');
-      const jsonEnd = rawContent.lastIndexOf('}');
-      const jsonString = rawContent.slice(jsonStart, jsonEnd + 1);
-      const parsed = JSON.parse(jsonString);
-
-      return res.status(200).json({
-        tableHtml: parsed.tableHtml ?? '<p>No table found.</p>',
-        justificationText: parsed.justificationText ?? 'No justification provided.',
-      });
-    } catch {
-      const tableMatch = rawContent.match(/<table[\s\S]*?<\/table>/i);
-      const tableHtml = tableMatch?.[0] ?? '<p>No table found.</p>';
-      const justificationText = rawContent.replace(tableHtml, '').trim() || 'No justification provided.';
-
-      return res.status(200).json({ tableHtml, justificationText });
+    if (!content || content.trim().length === 0) {
+      throw new Error('Empty response from OpenAI');
     }
+
+    return res.status(200).json({ budgetResponse: content });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     console.error('🔴 Budget Generation Error:', errorMessage);
