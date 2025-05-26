@@ -17,44 +17,81 @@ return res.status(400).json({ error: 'Missing or invalid draftChunks input' });
 }
 
 try {
-const fullDraft = draftChunks.join('\n\n');
+const summaries: string[] = [];
 
-const completion = await openai.chat.completions.create({
-  model: 'gpt-4',
-  temperature: 0.4,
-  messages: [
-    {
-      role: 'system',
-      content: `You are a grant budget expert. Given a research proposal draft, your job is to:
-Estimate the needed roles and resources:
 
-Scientists (senior/junior)
+// Step 1: Summarize each chunk for budget-relevant information
+for (const chunk of draftChunks) {
+  const summaryCompletion = await openai.chat.completions.create({
+    model: 'gpt-4',
+    temperature: 0.3,
+    messages: [
+      {
+        role: 'system',
+        content: `
+You are a research budget assistant. Summarize the roles, equipment, travel needs, and key activities mentioned in this chunk of a research proposal. Be concise and structured.
+Format:
 
-Engineers (senior/junior)
+Roles mentioned:
 
-Technicians
+Equipment:
 
-Travel
+Travel:
 
-Equipment (if any)
-
-Present the budget in a bulleted list format with rough yearly cost estimates.
-
-Then write a short budget justification paragraph.
-
-Only return the bullet list followed by the justification. Be concise and professional., }, { role: 'user', content: Here is the complete proposal draft:\n\n${fullDraft}`,
+Notes:
+`.trim(),
+},
+{
+role: 'user',
+content: chunk,
 },
 ],
 });
 
 
-const content = completion.choices?.[0]?.message?.content?.trim();
-
-if (!content) {
-  throw new Error('OpenAI returned no usable content');
+const summary = summaryCompletion.choices?.[0]?.message?.content?.trim();
+if (summary) {
+  summaries.push(summary);
+}
 }
 
-return res.status(200).json({ budgetResponse: content });
+// Step 2: Use combined summaries to generate the final budget
+const combinedSummary = summaries.join('\n\n');
+
+const budgetCompletion = await openai.chat.completions.create({
+model: 'gpt-4',
+temperature: 0.4,
+messages: [
+{
+role: 'system',
+content: `
+You are a grant budget expert. Based on the research proposal details below, generate:
+
+A bulleted budget estimate (roles/resources with rough yearly costs for 3 years).
+
+A concise budget justification.
+
+Respond in this format:
+
+Estimated Budget:
+
+[Item] — Year 1: $X, Year 2: $Y, Year 3: $Z
+...
+
+Justification:
+[One or two paragraphs justifying the budget]
+.trim(), }, { role: 'user', content: Here are the key requirements extracted from the proposal:\n\n${combinedSummary}`,
+},
+],
+});
+
+const finalContent = budgetCompletion.choices?.[0]?.message?.content?.trim();
+
+if (!finalContent) {
+throw new Error('OpenAI returned empty content during final budget generation.');
+}
+
+return res.status(200).json({ budgetResponse: finalContent });
 } catch (err) {
 const errorMessage = err instanceof Error ? err.message : 'Unknown error';
 console.error('🔴 Budget Generation Error:', errorMessage);
