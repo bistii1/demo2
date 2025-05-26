@@ -1,5 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import OpenAI from 'openai';
+type OpenAIError = Error & {
+    response?: {
+        status: number;
+        data: any; // You *can* use `any` here inside a `type` — it's ESLint-safe
+    };
+};
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY!,
@@ -37,15 +43,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         res.status(200).json({ summary });
     } catch (err: unknown) {
-        console.error('🔴 summarizeChunk error:', err);
+        const error = err as OpenAIError;
 
-        if (typeof err === 'object' && err !== null && 'response' in err) {
-            const response = (err as { response?: any }).response;
-            console.error('🔴 OpenAI response status:', response?.status);
-            console.error('🔴 OpenAI response data:', response?.data);
+        console.error('🔴 summarizeChunk error:', error);
+
+        if (error.response) {
+            console.error('🔴 OpenAI response status:', error.response.status);
+            console.error('🔴 OpenAI response data:', error.response.data);
         }
 
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        const errorMessage = error.message || 'Unknown error';
         return res.status(500).json({ error: 'Chunk summarization failed', detail: errorMessage });
     }
 }
