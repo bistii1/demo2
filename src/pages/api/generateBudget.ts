@@ -1,3 +1,4 @@
+// pages/api/generateBudget.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import OpenAI from 'openai';
 
@@ -19,12 +20,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4',
-      temperature: 0.4,
+      temperature: 0.5,
       messages: [
         {
           role: 'system',
           content: `
-You are a grant budget expert. Based on the provided research proposal, your job is to:
+You are a grant budget expert. Given a research proposal draft, your job is to:
 
 1. Estimate the needed roles and resources:
    - Scientists (senior/junior)
@@ -33,7 +34,7 @@ You are a grant budget expert. Based on the provided research proposal, your job
    - Travel
    - Equipment (if any)
 
-2. Generate a valid HTML table with columns:
+2. Generate an HTML budget table for 3 years with columns:
    - Role
    - Quantity
    - Year 1 Cost
@@ -41,15 +42,14 @@ You are a grant budget expert. Based on the provided research proposal, your job
    - Year 3 Cost
    - Total
 
-3. Write a short, plain-text budget justification explaining why these items are needed.
+3. Write a clear budget justification in plain text that supports the table, explaining why these roles/resources are needed.
 
-Please return a response wrapped in a JSON object like this:
-
+Return ONLY a raw JSON object in this format:
 {
   "tableHtml": "<table>...</table>",
-  "justificationText": "Justification goes here."
+  "justificationText": "..."
 }
-          `.trim(),
+`.trim(),
         },
         {
           role: 'user',
@@ -58,26 +58,21 @@ Please return a response wrapped in a JSON object like this:
       ],
     });
 
-    const rawContent = completion.choices[0]?.message?.content;
-
-    if (!rawContent) {
-      throw new Error('No content returned from OpenAI');
-    }
-
-    // 1. Try parsing JSON directly (with or without code block)
-    const jsonMatch = rawContent.match(/```json([\s\S]*?)```/i);
-    const jsonText = jsonMatch ? jsonMatch[1].trim() : rawContent;
+    const rawContent = completion.choices[0]?.message?.content ?? '';
 
     try {
-      const parsed = JSON.parse(jsonText);
+      const jsonStart = rawContent.indexOf('{');
+      const jsonEnd = rawContent.lastIndexOf('}');
+      const jsonString = rawContent.slice(jsonStart, jsonEnd + 1);
+      const parsed = JSON.parse(jsonString);
+
       return res.status(200).json({
-        tableHtml: parsed.tableHtml || '<p>No table found.</p>',
-        justificationText: parsed.justificationText || 'No justification provided.',
+        tableHtml: parsed.tableHtml ?? '<p>No table found.</p>',
+        justificationText: parsed.justificationText ?? 'No justification provided.',
       });
     } catch {
-      // 2. Fallback: extract table & rest
       const tableMatch = rawContent.match(/<table[\s\S]*?<\/table>/i);
-      const tableHtml = tableMatch?.[0] || '<p>No table found.</p>';
+      const tableHtml = tableMatch?.[0] ?? '<p>No table found.</p>';
       const justificationText = rawContent.replace(tableHtml, '').trim() || 'No justification provided.';
 
       return res.status(200).json({ tableHtml, justificationText });
