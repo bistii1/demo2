@@ -18,15 +18,14 @@ return res.status(400).json({ error: 'Missing or invalid draftChunks input' });
 
 try {
 const fullDraft = draftChunks.join('\n\n');
+
 const completion = await openai.chat.completions.create({
   model: 'gpt-4',
   temperature: 0.4,
   messages: [
     {
       role: 'system',
-      content: `
-You are a grant budget expert. Given a research proposal draft, your job is to:
-
+      content: `You are a grant budget expert. Given a research proposal draft, your job is to:
 Estimate the needed roles and resources:
 
 Scientists (senior/junior)
@@ -43,11 +42,11 @@ Present the budget in a bulleted list format with rough yearly cost estimates.
 
 Then write a short budget justification paragraph.
 
-Only return the bullet list followed by the justification. Be concise and professional.
-.trim(), }, { role: 'user', content: Here is the complete proposal draft:\n\n${fullDraft}`,
+Only return the bullet list followed by the justification. Be concise and professional., }, { role: 'user', content: Here is the complete proposal draft:\n\n${fullDraft}`,
 },
 ],
 });
+
 
 const content = completion.choices?.[0]?.message?.content?.trim();
 
