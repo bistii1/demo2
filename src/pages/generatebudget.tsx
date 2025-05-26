@@ -4,7 +4,6 @@ import { useUser } from "@auth0/nextjs-auth0/client";
 import Link from "next/link";
 
 export default function GenerateBudgetPage() {
-  const { user } = useUser();
   const [proposalText, setProposalText] = useState("");
   const [budgetTable, setBudgetTable] = useState("");
   const [justification, setJustification] = useState("");

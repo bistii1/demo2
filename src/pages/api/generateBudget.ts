@@ -1,4 +1,3 @@
-// pages/api/generateBudget.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import OpenAI from 'openai';
 
@@ -62,17 +61,18 @@ Return the result in JSON format with two fields:
       throw new Error('No content returned from OpenAI');
     }
 
-    // Extract table and justification via basic delimiter logic
+    // Extract HTML table and justification from the response
     const tableMatch = response.match(/<table[\s\S]*?<\/table>/i);
     const tableHtml = tableMatch ? tableMatch[0] : '<p>No table found.</p>';
     const justificationText = response.replace(tableHtml, '').trim();
 
     return res.status(200).json({ tableHtml, justificationText });
-  } catch (err: any) {
-    console.error('🔴 Budget Generation Error:', err);
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error('🔴 Budget Generation Error:', errorMessage);
     return res.status(500).json({
       error: 'Failed to generate budget',
-      detail: err.message || 'Unknown error',
+      detail: errorMessage,
     });
   }
 }
