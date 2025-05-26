@@ -95,3 +95,5 @@ export default function GenerateBudgetPage() {
     </div>
   );
 }
+
+//type shit 
