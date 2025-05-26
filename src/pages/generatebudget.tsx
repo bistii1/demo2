@@ -8,6 +8,7 @@ export default function GenerateBudgetPage() {
   const [justification, setJustification] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [chunkProgress, setChunkProgress] = useState({ current: 0, total: 0 });
 
   useEffect(() => {
     async function fetchLatestProposal() {
@@ -20,28 +21,52 @@ export default function GenerateBudgetPage() {
   }, []);
 
   const handleGenerate = async () => {
+    if (!proposalText) return;
+
     setLoading(true);
     setError("");
     setBudgetTable("");
     setJustification("");
+    setChunkProgress({ current: 0, total: 0 });
+
     try {
-      const res = await fetch("/api/generateBudget", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draft: proposalText }), // ✅ FIXED
-      });
-      if (!res.ok) throw new Error("Failed to generate budget");
-      const data = await res.json();
-      setBudgetTable(data.budgetTable);
-      setJustification(data.justification);
+      const CHUNK_SIZE = 6000; // characters
+      const chunks = [];
+      for (let i = 0; i < proposalText.length; i += CHUNK_SIZE) {
+        chunks.push(proposalText.slice(i, i + CHUNK_SIZE));
+      }
+
+      setChunkProgress({ current: 0, total: chunks.length });
+
+      let combinedTable = "";
+      let combinedJustification = "";
+
+      for (let i = 0; i < chunks.length; i++) {
+        setChunkProgress({ current: i + 1, total: chunks.length });
+
+        const res = await fetch("/api/generateBudget", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ draft: chunks[i] }),
+        });
+
+        if (!res.ok) throw new Error("Failed to generate budget");
+
+        const data = await res.json();
+        combinedTable += data.budgetTable || "";
+        combinedJustification += `\n${data.justification}`;
+      }
+
+      setBudgetTable(combinedTable);
+      setJustification(combinedJustification);
     } catch (err) {
       console.error(err);
       setError("Something went wrong generating the budget.");
     } finally {
       setLoading(false);
+      setChunkProgress({ current: 0, total: 0 });
     }
   };
-
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-100 to-blue-200 py-10 px-4 font-sans">
@@ -50,8 +75,8 @@ export default function GenerateBudgetPage() {
 
         <section className="mb-6">
           <h2 className="text-xl font-bold text-gray-800 mb-2">Proposal Text</h2>
-          <div className="border rounded-xl p-4 bg-gray-50 shadow-inner max-h-64 overflow-y-auto whitespace-pre-wrap text-sm">
-            {proposalText || "No proposal found."}
+          <div className="border rounded-xl p-4 bg-gray-50 shadow-inner max-h-64 overflow-y-auto whitespace-pre-wrap text-sm text-blue-900">
+            {loading ? "Fetching proposal..." : proposalText || "No proposal found."}
           </div>
         </section>
 
@@ -64,6 +89,12 @@ export default function GenerateBudgetPage() {
             {loading ? "Generating..." : "Generate Budget"}
           </button>
         </div>
+
+        {chunkProgress.total > 0 && (
+          <div className="text-sm text-center text-gray-700 mb-4">
+            Processing chunk {chunkProgress.current} of {chunkProgress.total}
+          </div>
+        )}
 
         {error && <p className="text-red-600 text-center mb-4">{error}</p>}
 
@@ -96,5 +127,3 @@ export default function GenerateBudgetPage() {
     </div>
   );
 }
-
-//type shit 
