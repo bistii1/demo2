@@ -164,7 +164,7 @@ export default function Upload() {
                     Check Compliance
                   </button>
                 </Link>
-                <Link href="/generatebudget">
+                <Link href="/generateBudget">
                   <button className="bg-gradient-to-r from-blue-600 to-indigo-500 text-white px-6 py-2 rounded-lg shadow hover:from-blue-700 hover:to-indigo-600 transition">
                     Generate Budget
                   </button>
