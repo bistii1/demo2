@@ -41,7 +41,7 @@ export default function GenerateBudgetPage() {
       for (let i = 0; i < chunks.length; i++) {
         setChunkProgress({ current: i + 1, total: chunks.length });
 
-        const res = await fetch('/api/summarizeChunk', {
+        const res = await fetch('/api/summarizeChunks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chunk: chunks[i] }),
