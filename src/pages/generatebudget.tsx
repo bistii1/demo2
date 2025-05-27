@@ -53,7 +53,7 @@ export default function GenerateBudgetPage() {
         summaries.push(data.summary || '');
       }
 
-      const finalRes = await fetch('/api/generateBudgetFinal', {
+      const finalRes = await fetch('/api/generateBudget', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ summaries }),
