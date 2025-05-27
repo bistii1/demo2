@@ -1,52 +1,36 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import OpenAI from 'openai';
+import { utils, write } from 'xlsx';
 
-const openai = new OpenAI({
-apiKey: process.env.OPENAI_API_KEY!,
-});
+/**
+ * Parses the budget response into structured Excel rows.
+ * Assumes bullet points like:
+ * - Principal Investigator: $100,000/year — Leads research
+ * - Research Assistant: $50,000/year — Supports data collection
+ */
+export function exportBudgetToExcel(budgetText: string): Blob {
+  const lines = budgetText
+    .split('\n')
+    .filter(line => line.trim().startsWith('-')) // Only budget bullet points
+    .map(line => line.replace(/^[-•]\s*/, ''));  // Remove leading bullet
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-if (req.method !== 'POST') {
-return res.status(405).json({ error: 'Only POST allowed' });
-}
+  const rows = lines.map(line => {
+    const [itemWithCost, justification] = line.split(/—|–|-/, 2); // Split on dash variants
+    const itemMatch = itemWithCost?.match(/^(.*?):\s*\$?([\d,]+)(?:\/year)?/i);
 
-const { summaries } = req.body;
+    const item = itemMatch?.[1]?.trim() || itemWithCost?.trim() || '';
+    const cost = itemMatch?.[2]?.trim() || '';
+    const just = justification?.trim() || '';
 
-if (!summaries || !Array.isArray(summaries)) {
-return res.status(400).json({ error: 'Invalid or missing summaries array' });
-}
+    return {
+      Item: item,
+      Cost: `$${cost}`,
+      Justification: just,
+    };
+  });
 
-const combined = summaries.join('\n\n');
+  const worksheet = utils.json_to_sheet(rows);
+  const workbook = utils.book_new();
+  utils.book_append_sheet(workbook, worksheet, 'Budget');
 
-try {
-const completion = await openai.chat.completions.create({
-model: 'gpt-4',
-temperature: 0.4,
-messages: [
-{
-role: 'system',
-content: `You are a grant budget expert. Based on the research proposal summary below, generate:
-
-A bulleted list of estimated roles/resources with yearly cost estimates.
-
-A concise justification paragraph explaining the budget needs.
-Only include the final budget and justification.`,
-},
-{
-role: 'user',
-content: combined,
-},
-],
-});
-
-const content = completion.choices[0]?.message?.content?.trim() || '';
-console.log('🔷 OpenAI response content:', content);
-if (!content) throw new Error('Empty response from OpenAI');
-
-res.status(200).json({ budgetResponse: content });
-} catch (err: unknown) {
-const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-console.error('🔴 generateBudgetFinal error:', errorMessage);
-return res.status(500).json({ error: 'Budget generation failed', detail: errorMessage });
-}
+  const excelBuffer = write(workbook, { bookType: 'xlsx', type: 'array' });
+  return new Blob([excelBuffer], { type: 'application/octet-stream' });
 }

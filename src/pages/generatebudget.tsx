@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { exportBudgetToExcel } from '@/utils/exportBudgetToExcel'; // ✅ Adjust path if needed
 
 export default function GenerateBudgetPage() {
   const [proposalText, setProposalText] = useState('');
@@ -21,7 +22,6 @@ export default function GenerateBudgetPage() {
   const handleGenerate = async () => {
     if (!proposalText) return;
 
-
     setLoading(true);
     setError('');
     setBudgetResponse('');
@@ -41,7 +41,7 @@ export default function GenerateBudgetPage() {
       for (let i = 0; i < chunks.length; i++) {
         setChunkProgress({ current: i + 1, total: chunks.length });
 
-        const res = await fetch('/api/summarizeChunks', {
+        const res = await fetch('/api/summarizeChunk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chunk: chunks[i] }),
@@ -50,13 +50,10 @@ export default function GenerateBudgetPage() {
         if (!res.ok) throw new Error('Chunk summarization failed');
 
         const data = await res.json();
-        console.log('🟡 Chunk Summary:', data.summary);
         summaries.push(data.summary || '');
       }
 
-      console.log('🟢 Summaries to budget endpoint:', summaries); 
-
-      const finalRes = await fetch('/api/generateBudget', {
+      const finalRes = await fetch('/api/generateBudgetFinal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ summaries }),
@@ -65,7 +62,6 @@ export default function GenerateBudgetPage() {
       if (!finalRes.ok) throw new Error('Final budget generation failed');
 
       const finalData = await finalRes.json();
-      console.log('🟢 Budget Response:', finalData);
       setBudgetResponse(finalData.budgetResponse);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -75,6 +71,20 @@ export default function GenerateBudgetPage() {
       setLoading(false);
       setChunkProgress({ current: 0, total: 0 });
     }
+  };
+
+  const handleDownloadExcel = () => {
+    if (!budgetResponse) return;
+
+    const blob = exportBudgetToExcel(budgetResponse);
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'budget.xlsx';
+    link.click();
+
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -112,6 +122,15 @@ export default function GenerateBudgetPage() {
             <h2 className="text-lg font-bold text-green-800 mb-2">Budget Estimate & Justification</h2>
             <div className="border rounded-xl bg-green-50 p-4 shadow-inner text-sm whitespace-pre-wrap text-green-900">
               {budgetResponse}
+            </div>
+
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={handleDownloadExcel}
+                className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700 transition-all duration-200"
+              >
+                Download Excel
+              </button>
             </div>
           </section>
         )}
