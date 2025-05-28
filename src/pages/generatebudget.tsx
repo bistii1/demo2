@@ -58,16 +58,24 @@ export default function GenerateBudgetPage() {
         summaries.push(data.summary || '');
       }
 
-      const formData = new FormData();
-      formData.append('summaries', JSON.stringify(summaries));
-      if (templateFile) {
-        formData.append('template', templateFile);
-      }
+      let finalRes;
 
-      const finalRes = await fetch('/api/generateBudgetWithTemplate', {
-        method: 'POST',
-        body: formData,
-      });
+      if (templateFile) {
+        const formData = new FormData();
+        formData.append('summaries', JSON.stringify(summaries));
+        formData.append('template', templateFile);
+
+        finalRes = await fetch('/api/generateBudgetWithTemplate', {
+          method: 'POST',
+          body: formData,
+        });
+      } else {
+        finalRes = await fetch('/api/generateBudget', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ summaries }),
+        });
+      }
 
       if (!finalRes.ok) throw new Error('Final budget generation failed');
 
