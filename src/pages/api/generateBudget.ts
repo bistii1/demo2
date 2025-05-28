@@ -1,3 +1,4 @@
+// pages/api/generateBudget.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import OpenAI from 'openai';
 
@@ -6,20 +7,17 @@ const openai = new OpenAI({
 });
 
 function estimateTokenCount(text: string): number {
-  return Math.ceil(text.length / 4);
+  return Math.ceil(text.length / 4); // ≈4 characters per token on average
 }
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Only POST allowed' });
+    return res.status(405).json({ error: 'Only POST requests are allowed' });
   }
 
   const { summaries } = req.body;
 
-  if (!Array.isArray(summaries)) {
+  if (!Array.isArray(summaries) || summaries.length === 0) {
     return res.status(400).json({ error: 'Invalid or missing summaries array' });
   }
 
@@ -35,7 +33,7 @@ export default async function handler(
   const TOKEN_LIMIT = 6000;
   if (tokenEstimate > TOKEN_LIMIT) {
     return res.status(400).json({
-      error: `Combined summary is too long for OpenAI. Estimated tokens: ${tokenEstimate} (limit: ${TOKEN_LIMIT}).`,
+      error: `Combined summary too long. Estimated tokens: ${tokenEstimate} (limit: ${TOKEN_LIMIT})`,
     });
   }
 
@@ -65,20 +63,27 @@ Only include the final PAMS-style budget and justifications. Be concise but clea
       messages,
     });
 
-    const content = completion.choices[0]?.message?.content?.trim() ?? '';
+    const choice = completion.choices[0]?.message;
+    const content = choice?.content?.trim();
 
-    if (!content) {
-      throw new Error('OpenAI returned an empty response.');
+    console.log('🔍 Full OpenAI message object:', JSON.stringify(choice, null, 2));
+
+    if (!content || content.length === 0) {
+      throw new Error('OpenAI returned an empty or undefined response.');
     }
 
-    console.log('✅ OpenAI response received.');
+    console.log('✅ Budget response generated successfully.');
     return res.status(200).json({ budgetResponse: content });
   } catch (err: unknown) {
     const errorMessage =
       err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error';
 
     if (err && typeof err === 'object' && 'status' in err && 'message' in err) {
-      console.error('🔴 OpenAI API Error:', (err as { status: number; message: string }).status, (err as { status: number; message: string }).message);
+      console.error(
+        '🔴 OpenAI API Error:',
+        (err as { status: number; message: string }).status,
+        (err as { status: number; message: string }).message
+      );
     } else {
       console.error('🔴 Budget generation error:', errorMessage);
     }
