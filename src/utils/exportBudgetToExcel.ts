@@ -1,66 +1,75 @@
-// utils/exportBudgetToExcel.ts
 import * as XLSX from 'xlsx';
 
-interface BudgetRow {
+type BudgetItem = {
   Category: string;
   Item: string;
-  'Year 1': string;
-  'Year 2': string;
-  'Year 3'?: string;
-  Total: string;
-}
+  Year1: number;
+  Year2: number;
+  Total: number;
+};
 
 export function exportBudgetToExcel(budgetText: string): Blob {
-  const lines = budgetText.split('\n');
+  const lines = budgetText.split('\n').map(l => l.trim()).filter(Boolean);
 
-  const rows: BudgetRow[] = [];
+  const items: BudgetItem[] = [];
   let currentCategory = '';
-  let currentItem: Partial<BudgetRow> = {};
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
 
-    // Detect and store category (e.g. "Personnel:")
-    if (/^[A-Za-z\s&]+:$/.test(trimmed)) {
-      currentCategory = trimmed.slice(0, -1); // Remove colon
+    // Detect category headers like "Personnel:", "Equipment:", etc.
+    if (/^[A-Z].+:$/.test(line)) {
+      currentCategory = line.replace(':', '');
+      continue;
     }
 
-    // Item line (e.g. "- Research Staff")
-    else if (/^- /.test(trimmed)) {
-      if (currentItem.Item) rows.push(currentItem as BudgetRow);
-      currentItem = {
+    // Detect item lines like "- Principal Investigator"
+    if (line.startsWith('-')) {
+      const itemName = line.replace(/^-\s*/, '');
+      const year1 = parseDollar(lines[i + 1]);
+      const year2 = parseDollar(lines[i + 2]);
+      const total = parseDollar(lines[i + 3]);
+
+      items.push({
         Category: currentCategory,
-        Item: trimmed.replace(/^- /, ''),
-        'Year 1': '',
-        'Year 2': '',
-        'Year 3': '',
-        Total: ''
-      };
-    }
+        Item: itemName,
+        Year1: year1,
+        Year2: year2,
+        Total: total,
+      });
 
-    // Yearly or Total cost lines
-    else if (/^Year \d+:/.test(trimmed)) {
-      const [label, value] = trimmed.split(':');
-      if (currentItem) currentItem[label.trim() as keyof BudgetRow] = value.trim();
-    } else if (/^Total:/.test(trimmed)) {
-      const value = trimmed.split(':')[1]?.trim() || '';
-      if (currentItem) currentItem.Total = value;
+      i += 3; // Skip next 3 lines as they’ve been processed
     }
   }
 
-  // Push last item if exists
-  if (currentItem.Item) {
-    rows.push(currentItem as BudgetRow);
-  }
+  // Prepare sheet data
+  const header = ['Category', 'Item', 'Year 1', 'Year 2', 'Total'];
+  const rows = [header, ...items.map(item => [
+    item.Category,
+    item.Item,
+    item.Year1,
+    item.Year2,
+    item.Total,
+  ])];
 
-  // Clean sheet generation
-  const worksheet = XLSX.utils.json_to_sheet(rows);
+  const worksheet = XLSX.utils.aoa_to_sheet(rows);
+
+  // Auto width
+  const colWidths = header.map(() => ({ wch: 25 }));
+  worksheet['!cols'] = colWidths;
+
+  // Create workbook
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'PAMS Budget');
 
-  const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-  return new Blob([buffer], {
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  return new Blob([excelBuffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
+}
+
+function parseDollar(line: string): number {
+  const match = line.match(/\$([\d,]+)/);
+  if (!match) return 0;
+  return parseInt(match[1].replace(/,/g, ''), 10);
 }
