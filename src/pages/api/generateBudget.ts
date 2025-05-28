@@ -25,13 +25,15 @@ temperature: 0.4,
 messages: [
 {
 role: 'system',
-content: `You are a grant budget expert. Based on the research proposal summary below, generate:
+content: `
+You are a grant budget expert. Based on the research proposal summary below, generate a budget in the format of a U.S. Department of Energy PAMS-style budget. Include:
 
-A bulleted list of estimated roles/resources with yearly cost estimates.
+1. A bulleted list of roles/resources and estimated yearly costs (3 years).
+2. Standard categories: Personnel, Fringe, Equipment, Travel, Materials & Supplies, Other Direct Costs, Indirect Costs.
+3. A plain-language justification paragraph for each category explaining how the budget supports the proposal objectives.
 
-A concise justification paragraph explaining HOW we are using the budget.
-It should state each thing that is in the table.
-Only include the final budget and justification.`,
+Only include the final PAMS-style budget and justifications. Be concise but clear.
+`.trim(),
 },
 {
 role: 'user',

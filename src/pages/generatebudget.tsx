@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { exportBudgetToExcel } from '@/utils/exportBudgetToExcel'; // ✅ Adjust path if needed
+import { exportBudgetToExcel } from '@/utils/exportBudgetToExcel';
 
 export default function GenerateBudgetPage() {
   const [proposalText, setProposalText] = useState('');
@@ -8,6 +8,7 @@ export default function GenerateBudgetPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [chunkProgress, setChunkProgress] = useState({ current: 0, total: 0 });
+  const [templateFile, setTemplateFile] = useState<File | null>(null);
 
   useEffect(() => {
     async function fetchLatestProposal() {
@@ -18,6 +19,10 @@ export default function GenerateBudgetPage() {
     }
     fetchLatestProposal();
   }, []);
+
+  const handleTemplateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTemplateFile(e.target.files?.[0] || null);
+  };
 
   const handleGenerate = async () => {
     if (!proposalText) return;
@@ -53,10 +58,15 @@ export default function GenerateBudgetPage() {
         summaries.push(data.summary || '');
       }
 
-      const finalRes = await fetch('/api/generateBudget', {
+      const formData = new FormData();
+      formData.append('summaries', JSON.stringify(summaries));
+      if (templateFile) {
+        formData.append('template', templateFile);
+      }
+
+      const finalRes = await fetch('/api/generateBudgetWithTemplate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ summaries }),
+        body: formData,
       });
 
       if (!finalRes.ok) throw new Error('Final budget generation failed');
@@ -98,6 +108,16 @@ export default function GenerateBudgetPage() {
             {loading ? 'Fetching proposal...' : proposalText || 'No proposal found.'}
           </div>
         </section>
+
+        <div className="mb-6">
+          <label className="block text-gray-800 font-medium mb-2">Optional: Upload Excel Template</label>
+          <input
+            type="file"
+            accept=".xlsx"
+            onChange={handleTemplateUpload}
+            className="block w-full text-sm text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm"
+          />
+        </div>
 
         <div className="flex justify-center mb-6">
           <button
