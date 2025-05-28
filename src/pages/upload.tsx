@@ -135,11 +135,18 @@ export default function Upload() {
                 </svg>
                 Upload successful!
               </div>
-              <Link href="/textpreview" className="w-full">
-                <button className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-2 rounded-lg shadow hover:from-green-600 hover:to-emerald-600 transition w-full font-semibold">
-                  Check Compliance
-                </button>
-              </Link>
+              <div className="flex flex-col sm:flex-row gap-4 w-full">
+                <Link href="/textpreview" className="w-full">
+                  <button className="bg-gradient-to-r from-green-500 to-emerald-500 text-white px-6 py-2 rounded-lg shadow hover:from-green-600 hover:to-emerald-600 transition w-full font-semibold">
+                    Check Compliance
+                  </button>
+                </Link>
+                <Link href="/generatebudget" className="w-full">
+                  <button className="bg-gradient-to-r from-blue-600 to-indigo-500 text-white px-6 py-2 rounded-lg shadow hover:from-blue-700 hover:to-indigo-600 transition w-full font-semibold">
+                    Generate Budget
+                  </button>
+                </Link>
+              </div>
             </div>
           )}
 
