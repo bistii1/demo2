@@ -36,18 +36,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return file as FormidableFile;
     };
 
-    const guidelinesFile = getFile(files.guidelines);
     const draftFile = getFile(files.draft);
 
-    if (!guidelinesFile || !draftFile) {
-      return res.status(400).json({ message: 'Both files are required' });
+    if (!draftFile) {
+      return res.status(400).json({ message: 'Draft file is required' });
     }
 
     try {
-      const guidelinesBuffer = await fs.readFile(guidelinesFile.filepath);
       const draftBuffer = await fs.readFile(draftFile.filepath);
-
-      const guidelinesText = (await pdfParse(guidelinesBuffer)).text;
       const draftText = (await pdfParse(draftBuffer)).text;
 
       const session = await getSession(req, res);
@@ -62,13 +58,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         userEmail: user?.email || fields.userEmail || 'anonymous',
         userSub: user?.sub || null,
         parsedText: {
-          guidelines: guidelinesText,
           draft: draftText
-        },
-        guidelines: {
-          filename: guidelinesFile.originalFilename,
-          contentType: guidelinesFile.mimetype,
-          data: guidelinesBuffer,
         },
         draft: {
           filename: draftFile.originalFilename,

@@ -29,7 +29,8 @@ content: `You are a grant budget expert. Based on the research proposal summary 
 
 A bulleted list of estimated roles/resources with yearly cost estimates.
 
-A concise justification paragraph explaining the budget needs.
+A concise justification paragraph explaining HOW we are using the budget.
+It should state each thing that is in the table.
 Only include the final budget and justification.`,
 },
 {

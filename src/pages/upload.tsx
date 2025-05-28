@@ -6,7 +6,6 @@ import Link from 'next/link';
 export default function Upload() {
   const { user } = useUser();
 
-  const [guidelines, setGuidelines] = useState<File | null>(null);
   const [proposal, setProposal] = useState<File | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -20,14 +19,13 @@ export default function Upload() {
     setIsUploading(true);
     setProgress(0);
 
-    if (!guidelines || !proposal) {
-      setError('Please upload both PDFs.');
+    if (!proposal) {
+      setError('Please upload your draft proposal PDF.');
       setIsUploading(false);
       return;
     }
 
     const formData = new FormData();
-    formData.append('guidelines', guidelines);
     formData.append('draft', proposal);
     formData.append('userEmail', user?.email || 'anonymous');
 
@@ -43,7 +41,6 @@ export default function Upload() {
       }
 
       setUploadSuccess(true);
-      setGuidelines(null);
       setProposal(null);
     } catch (err) {
       setError('Something went wrong while uploading.');
@@ -54,14 +51,12 @@ export default function Upload() {
     }
   };
 
-  const handleFileChange =
-    (setter: (file: File | null) => void) =>
-      (e: ChangeEvent<HTMLInputElement>) => {
-        setter(e.target.files?.[0] || null);
-      };
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setProposal(e.target.files?.[0] || null);
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-100 to-blue-200 text-blue-900 font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-100 to-blue-200 text-blue-900 font-sans flex flex-col">
       {/* Navbar */}
       <nav className="flex justify-between items-center p-6 bg-white/80 shadow-md rounded-b-xl mb-8">
         <Link href="/" className="text-xl font-bold tracking-tight text-blue-700 hover:underline">
@@ -77,48 +72,28 @@ export default function Upload() {
         )}
       </nav>
 
-      {/* Upload Section */}
-      <main className="flex flex-col items-center justify-center px-4">
-        <div className="bg-white/90 rounded-2xl shadow-2xl p-10 w-full max-w-3xl">
+      {/* Centered Upload Section */}
+      <main className="flex flex-1 flex-col items-center justify-center px-4">
+        <div className="bg-white/90 rounded-2xl shadow-2xl p-10 w-full max-w-md flex flex-col items-center">
           <h1 className="text-3xl font-extrabold mb-8 text-center text-indigo-800 tracking-tight">
-            Upload Your PDF Files
+            Upload Your Draft Proposal
           </h1>
 
           <form
             id="upload-form"
             onSubmit={handleSubmit}
-            className="flex flex-col md:flex-row gap-8 mb-6 justify-center"
+            className="flex flex-col gap-6 w-full items-center"
           >
-            {/* Guidelines Upload */}
-            <div className="w-full md:w-64">
-              <label className="block mb-2 font-medium text-gray-700">
-                Budget Justification Draft
-              </label>
-              <input
-                type="file"
-                accept="application/pdf"
-                onChange={handleFileChange(setGuidelines)}
-                className="border border-gray-300 rounded-lg px-3 py-2 w-full text-gray-800 shadow-sm focus:ring-2 focus:ring-blue-300 transition"
-              />
-              {guidelines && (
-                <embed
-                  src={URL.createObjectURL(guidelines)}
-                  type="application/pdf"
-                  className="mt-3 w-full h-40 border rounded-lg shadow"
-                />
-              )}
-            </div>
-
-            {/* Proposal Upload */}
-            <div className="w-full md:w-64">
-              <label className="block mb-2 font-medium text-gray-700">
+            <div className="w-full">
+              <label className="block mb-2 font-medium text-gray-700 text-center">
                 Draft Proposal (PDF)
               </label>
               <input
                 type="file"
                 accept="application/pdf"
-                onChange={handleFileChange(setProposal)}
+                onChange={handleFileChange}
                 className="border border-gray-300 rounded-lg px-3 py-2 w-full text-gray-800 shadow-sm focus:ring-2 focus:ring-blue-300 transition"
+                required
               />
               {proposal && (
                 <embed
@@ -128,18 +103,14 @@ export default function Upload() {
                 />
               )}
             </div>
-          </form>
-
-          <div className="flex justify-center">
             <button
               type="submit"
-              form="upload-form"
               className="bg-gradient-to-r from-indigo-600 to-blue-500 text-white px-8 py-3 rounded-xl shadow-lg font-semibold text-lg hover:from-indigo-700 hover:to-blue-600 transition-all duration-200"
               disabled={isUploading}
             >
               {isUploading ? 'Uploading...' : 'Submit'}
             </button>
-          </div>
+          </form>
 
           {isUploading && (
             <div className="w-full mt-4">
@@ -173,13 +144,11 @@ export default function Upload() {
             </div>
           )}
 
-
           {error && (
             <p className="text-red-600 mt-6 font-semibold text-center">
               {error}
             </p>
           )}
-
         </div>
       </main>
 
