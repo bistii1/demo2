@@ -85,8 +85,9 @@ Format clearly. Output should be appropriate for human and Excel processing.`,
     }
 
     return res.status(200).json({ budgetResponse: responseText });
-  } catch (err: any) {
-    console.error('🔴 generateBudgetWithTemplate error:', err);
-    return res.status(500).json({ error: 'Failed to generate budget', detail: err.message });
-  }
+  } catch (err: unknown) {
+  const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+  console.error('🔴 generateBudgetWithTemplate error:', errorMessage);
+  return res.status(500).json({ error: 'Failed to generate budget', detail: errorMessage });
+}
 }
