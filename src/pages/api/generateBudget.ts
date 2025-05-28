@@ -5,17 +5,6 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
-function isOpenAIError(error: unknown): error is { status: number; message: string } {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'status' in error &&
-    'message' in error &&
-    typeof (error as { status: unknown }).status === 'number' &&
-    typeof (error as { message: unknown }).message === 'string'
-  );
-}
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Only POST allowed' });
@@ -27,14 +16,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).json({ error: 'Invalid or missing summaries array' });
   }
 
-  const combined = summaries.join('\n\n');
+  const combined = summaries.join('\n\n').trim();
 
-  if (!combined.trim()) {
+  if (!combined) {
     return res.status(400).json({ error: 'Summaries are empty after combining.' });
   }
 
   console.log('🧠 Combined summary length (chars):', combined.length);
-  console.log('🟡 Sending to OpenAI...');
+  console.log('📝 Combined summary preview:\n', combined.slice(0, 500));
 
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     {
@@ -56,35 +45,43 @@ Only include the final PAMS-style budget and justifications. Be concise but clea
   ];
 
   const tryModel = async (model: 'gpt-4' | 'gpt-3.5-turbo'): Promise<string> => {
-    const completion = await openai.chat.completions.create({
-      model,
-      temperature: 0.4,
-      messages,
-    });
-    return completion.choices[0]?.message?.content?.trim() || '';
+    try {
+      const completion = await openai.chat.completions.create({
+        model,
+        temperature: 0.4,
+        messages,
+      });
+
+      const content = completion.choices?.[0]?.message?.content?.trim() ?? '';
+      console.log(`🔵 OpenAI ${model} response:\n`, content.slice(0, 500));
+      return content;
+    } catch (err: unknown) {
+      const errMsg =
+        err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error';
+      console.error(`❌ OpenAI ${model} error:`, errMsg);
+      throw new Error(`OpenAI ${model} failed: ${errMsg}`);
+    }
   };
 
   try {
     let content = await tryModel('gpt-4');
 
     if (!content) {
-      console.warn('⚠️ GPT-4 returned empty. Trying GPT-3.5-Turbo...');
+      console.warn('⚠️ GPT-4 returned empty. Trying GPT-3.5-turbo...');
       content = await tryModel('gpt-3.5-turbo');
     }
 
-    if (!content) throw new Error('OpenAI returned an empty response.');
-
-    console.log('✅ Budget response generated');
-    res.status(200).json({ budgetResponse: content });
-  } catch (err: unknown) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-
-    if (isOpenAIError(err)) {
-      console.error('🔴 OpenAI API Error:', err.status, err.message);
-    } else {
-      console.error('🔴 generateBudgetFinal error:', errorMessage);
+    if (!content) {
+      console.warn('⚠️ All models returned empty. Sending fallback.');
+      return res.status(200).json({ budgetResponse: '⚠️ OpenAI returned no response.' });
     }
 
-    res.status(500).json({ error: 'Budget generation failed', detail: errorMessage });
+    console.log('✅ Budget response successfully generated.');
+    return res.status(200).json({ budgetResponse: content });
+  } catch (err: unknown) {
+    const errorMessage =
+      err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error';
+    console.error('🔴 generateBudget error:', errorMessage);
+    return res.status(500).json({ error: 'Budget generation failed', detail: errorMessage });
   }
 }
