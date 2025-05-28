@@ -5,7 +5,6 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
 
-// Simple token estimate (not exact)
 function estimateTokenCount(text: string): number {
   return Math.ceil(text.length / 4);
 }
@@ -33,7 +32,6 @@ export default async function handler(
   const tokenEstimate = estimateTokenCount(combined);
   console.log(`🧠 Combined summary length: ${combined.length} chars ≈ ${tokenEstimate} tokens`);
 
-  // Safety threshold (for gpt-4-8k context)
   const TOKEN_LIMIT = 6000;
   if (tokenEstimate > TOKEN_LIMIT) {
     return res.status(400).json({
@@ -79,9 +77,12 @@ Only include the final PAMS-style budget and justifications. Be concise but clea
     const errorMessage =
       err instanceof Error ? err.message : typeof err === 'string' ? err : 'Unknown error';
 
-    console.error('🔴 Budget generation error:', errorMessage);
-    return res
-      .status(500)
-      .json({ error: 'Budget generation failed', detail: errorMessage });
+    if (err && typeof err === 'object' && 'status' in err && 'message' in err) {
+      console.error('🔴 OpenAI API Error:', (err as { status: number; message: string }).status, (err as { status: number; message: string }).message);
+    } else {
+      console.error('🔴 Budget generation error:', errorMessage);
+    }
+
+    return res.status(500).json({ error: 'Budget generation failed', detail: errorMessage });
   }
 }
