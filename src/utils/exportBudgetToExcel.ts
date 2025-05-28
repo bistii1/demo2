@@ -6,28 +6,24 @@ export function exportBudgetToExcel(budgetText: string): Blob {
     .map(line => line.trim())
     .filter(line => line.startsWith('-'));
 
-  const rows: { Category: string; Description: string; Year1: string; Year2: string; Year3: string; Total: string }[] = [];
+  const rows: { Category: string; Description: string }[] = [];
 
   lines.forEach(line => {
-    // Example line: "- Personnel: 1 Scientist ($100,000/year) — Supports research activities"
     const clean = line.replace(/^[-•]\s*/, '');
-    const [left, justification] = clean.split(/—|–|-/).map(s => s.trim());
+    const [left] = clean.split(/—|–|-/).map(s => s.trim());
     const categoryMatch = left.match(/^([^:]+):\s*(.+)$/);
+
     const category = categoryMatch?.[1] || 'Uncategorized';
-    const description = categoryMatch?.[2] || '';
+    const description = categoryMatch?.[2] || left;
 
     rows.push({
       Category: category,
       Description: description,
-      Year1: '', // Could be parsed further from numbers if standardized
-      Year2: '',
-      Year3: '',
-      Total: '',
     });
   });
 
   const worksheet = XLSX.utils.json_to_sheet(rows, {
-    header: ['Category', 'Description', 'Year1', 'Year2', 'Year3', 'Total'],
+    header: ['Category', 'Description'],
   });
 
   const workbook = XLSX.utils.book_new();
