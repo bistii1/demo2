@@ -1,10 +1,20 @@
-// pages/api/generateBudget.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
 });
+
+function isOpenAIError(error: unknown): error is { status: number; message: string } {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    'message' in error &&
+    typeof (error as { status: unknown }).status === 'number' &&
+    typeof (error as { message: unknown }).message === 'string'
+  );
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -45,8 +55,7 @@ Only include the final PAMS-style budget and justifications. Be concise but clea
     },
   ];
 
-  // Try GPT-4 first, fallback to GPT-3.5-turbo if it fails
-  const tryModel = async (model: 'gpt-4' | 'gpt-3.5-turbo') => {
+  const tryModel = async (model: 'gpt-4' | 'gpt-3.5-turbo'): Promise<string> => {
     const completion = await openai.chat.completions.create({
       model,
       temperature: 0.4,
@@ -58,7 +67,6 @@ Only include the final PAMS-style budget and justifications. Be concise but clea
   try {
     let content = await tryModel('gpt-4');
 
-    // Fallback if GPT-4 fails to return content
     if (!content) {
       console.warn('⚠️ GPT-4 returned empty. Trying GPT-3.5-Turbo...');
       content = await tryModel('gpt-3.5-turbo');
@@ -71,8 +79,8 @@ Only include the final PAMS-style budget and justifications. Be concise but clea
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
 
-    if ('status' in (err as any)) {
-      console.error('🔴 OpenAI API Error:', (err as any).status, (err as any).message);
+    if (isOpenAIError(err)) {
+      console.error('🔴 OpenAI API Error:', err.status, err.message);
     } else {
       console.error('🔴 generateBudgetFinal error:', errorMessage);
     }
