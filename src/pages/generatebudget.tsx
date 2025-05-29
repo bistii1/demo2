@@ -149,7 +149,9 @@ export default function GenerateBudgetPage() {
           <section>
             <h2 className="text-lg font-bold text-green-800 mb-2">Budget Estimate & Justification</h2>
             <div className="border rounded-xl bg-green-50 p-4 shadow-inner text-sm whitespace-pre-wrap text-green-900">
-              {budgetResponse}
+              {typeof budgetResponse === 'string'
+                ? budgetResponse
+                : JSON.stringify(budgetResponse, null, 2)}
             </div>
 
             <div className="mt-4 flex justify-center">
