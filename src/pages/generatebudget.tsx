@@ -100,7 +100,8 @@ export default function GenerateBudgetPage() {
     if (!budgetResponse || !templateFile) return;
 
     try {
-      const blob = await exportBudgetToExcelFromTemplate(templateFile, budgetResponse);
+      const arrayBuffer = await templateFile.arrayBuffer();
+      const blob = await exportBudgetToExcelFromTemplate(arrayBuffer, budgetResponse);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;

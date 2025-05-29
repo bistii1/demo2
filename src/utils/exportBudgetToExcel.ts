@@ -63,7 +63,7 @@ export async function exportBudgetToExcelFromTemplate(
   }
 
   // Step 4: Append data to worksheet (starting below existing rows)
-  const existingData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[]; // raw row data
+  const existingData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as (string | number | Date)[][]; // typed raw row data
   const startingRow = existingData.length;
 
   XLSX.utils.sheet_add_json(worksheet, rows, {
