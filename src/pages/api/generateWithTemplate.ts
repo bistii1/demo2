@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import formidable from 'formidable';
 import OpenAI from 'openai';
 import * as XLSX from 'xlsx';
+import fs from 'fs';
 
 export const config = {
   api: {
@@ -13,7 +14,9 @@ export const config = {
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Only POST allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Only POST allowed' });
+  }
 
   const form = formidable({ multiples: true });
 
@@ -24,14 +27,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const summaries = JSON.parse(fields.summaries?.[0] || '[]');
       const templateFile = files.template?.[0];
 
-      const templatePath = templateFile?.filepath; // ✅ Use the provided path directly
+      const templatePath = templateFile?.filepath;
 
       resolve({ summaries, templatePath });
     });
   });
 
   const combined = parsed.summaries?.join('\n\n');
-  if (!combined) return res.status(400).json({ error: 'Invalid summaries format' });
+  if (!combined) {
+    return res.status(400).json({ error: 'Invalid summaries format' });
+  }
 
   try {
     const completion = await openai.chat.completions.create({
@@ -41,29 +46,32 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         {
           role: 'system',
           content: `
-You are a U.S. DOE grant expert. Given a research proposal summary, generate a PAMS-style budget estimate including:
+You are a U.S. DOE grant expert. Given a research proposal summary, generate a PAMS-style budget estimate.
 
-1. Standard PAMS budget categories:
-   - Personnel
-   - Fringe Benefits
-   - Equipment
-   - Travel
-   - Materials and Supplies
-   - Other Direct Costs
-   - Indirect Costs
+Return your answer as valid JSON in this format:
+{
+  "Personnel": {
+    "Year1": 100000,
+    "Year2": 105000,
+    "Year3": 110000,
+    "Total": 315000,
+    "Justification": "Short paragraph"
+  },
+  "Fringe Benefits": { ... },
+  ...
+}
 
-2. For each category:
-   - Show estimated costs for Year 1, Year 2, Year 3, and Total
-   - Present it in a **bulleted list or formatted plain text** (no tables for now)
+Only include these categories:
+- Personnel
+- Fringe Benefits
+- Equipment
+- Travel
+- Materials and Supplies
+- Other Direct Costs
+- Indirect Costs
 
-3. Then write a **budget justification paragraph** for each category.
-
-Return:
-- Clear labels for each category and year
-- Plain, readable output (for now, no HTML or JSON formatting)
-
-Only include the final cohesive budget. Avoid repeating the same category multiple times.
-`.trim(),
+Do not include any explanation or formatting outside of the JSON.
+        `.trim(),
         },
         { role: 'user', content: combined },
       ],
@@ -72,24 +80,63 @@ Only include the final cohesive budget. Avoid repeating the same category multip
     const responseText = completion.choices?.[0]?.message?.content?.trim();
     if (!responseText) throw new Error('No response from OpenAI');
 
-    // If a template was provided, optionally modify it
-    if (parsed.templatePath) {
-      const workbook = XLSX.readFile(parsed.templatePath);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
+    const parsedBudget = JSON.parse(responseText);
 
-      // Paste response into starting at A10
-      XLSX.utils.sheet_add_aoa(worksheet, [[responseText]], { origin: 'A10' });
-
-      const outputBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-
-      return res.status(200).json({
-        budgetResponse: responseText,
-        templateModifiedBuffer: outputBuffer.toString('base64'), // optionally return buffer
-      });
+    if (!parsed.templatePath) {
+      return res.status(200).json({ budgetResponse: parsedBudget });
     }
 
-    return res.status(200).json({ budgetResponse: responseText });
+    const workbook = XLSX.readFile(parsed.templatePath);
+
+    const yearSheetMap = {
+      Year1: 'Budget Period #1',
+      Year2: 'Budget Period #2',
+      Year3: 'Budget Period #3',
+    };
+
+    const baseCellRow = {
+      'Personnel': 21,
+      'Fringe Benefits': 22,
+      'Equipment': 23,
+      'Travel': 24,
+      'Materials and Supplies': 25,
+      'Other Direct Costs': 26,
+      'Indirect Costs': 27,
+    };
+
+    for (const [category, values] of Object.entries(parsedBudget)) {
+      const row = baseCellRow[category as keyof typeof baseCellRow];
+      if (!row) continue;
+
+      for (const [yearKey, value] of Object.entries(values as Record<string, any>)) {
+        if (yearKey === 'Total' || yearKey === 'Justification') continue;
+
+        const sheetName = yearSheetMap[yearKey as keyof typeof yearSheetMap];
+        const worksheet = workbook.Sheets[sheetName];
+        const cell = 'C' + row;
+
+        worksheet[cell] = { t: 'n', v: value as number };
+      }
+
+      // Optionally: Add justification as comment or another sheet
+    }
+
+    // Optional: add to Budget Summary
+    const summarySheet = workbook.Sheets['Budget Summary'];
+    for (const [category, values] of Object.entries(parsedBudget)) {
+      const row = baseCellRow[category as keyof typeof baseCellRow];
+      if (!row) continue;
+      const cell = 'C' + row;
+      const typedValues = values as { [key: string]: any };
+      summarySheet[cell] = { t: 'n', v: typedValues.Total as number };
+    }
+
+    const outputBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+
+    return res.status(200).json({
+      budgetResponse: parsedBudget,
+      templateModifiedBuffer: outputBuffer.toString('base64'),
+    });
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     console.error('🔴 generateWithTemplate error:', errorMessage);
