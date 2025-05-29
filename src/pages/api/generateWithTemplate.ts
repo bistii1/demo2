@@ -3,7 +3,6 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import formidable from 'formidable';
 import OpenAI from 'openai';
 import * as XLSX from 'xlsx';
-import fs from 'fs';
 
 export const config = {
   api: {
