@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { exportBudgetToExcel } from '@/utils/exportBudgetToExcel';
+import { exportBudgetToExcelFromTemplate } from '@/utils/exportBudgetToExcel';
 
 export default function GenerateBudgetPage() {
   const [proposalText, setProposalText] = useState('');
-  const [budgetResponse, setBudgetResponse] = useState('');
+  const [budgetResponse, setBudgetResponse] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [chunkProgress, setChunkProgress] = useState({ current: 0, total: 0 });
@@ -12,10 +12,16 @@ export default function GenerateBudgetPage() {
 
   useEffect(() => {
     async function fetchLatestProposal() {
-      const res = await fetch('/api/getParsedText');
-      const data = await res.json();
-      const latest = data.uploads?.[0]?.draftText;
-      if (latest) setProposalText(latest);
+      try {
+        const res = await fetch('/api/getParsedText');
+        if (!res.ok) throw new Error('Failed to fetch latest proposal');
+        const data = await res.json();
+        const latest = data.uploads?.[0]?.draftText;
+        if (latest) setProposalText(latest);
+      } catch (err) {
+        console.error('🔴 Fetch proposal error:', err);
+        setError('Failed to load the latest proposal.');
+      }
     }
     fetchLatestProposal();
   }, []);
@@ -29,11 +35,11 @@ export default function GenerateBudgetPage() {
 
     setLoading(true);
     setError('');
-    setBudgetResponse('');
+    setBudgetResponse(null);
     setChunkProgress({ current: 0, total: 0 });
 
     const CHUNK_SIZE = 6000;
-    const chunks = [];
+    const chunks: string[] = [];
     for (let i = 0; i < proposalText.length; i += CHUNK_SIZE) {
       chunks.push(proposalText.slice(i, i + CHUNK_SIZE));
     }
@@ -52,14 +58,13 @@ export default function GenerateBudgetPage() {
           body: JSON.stringify({ chunk: chunks[i] }),
         });
 
-        if (!res.ok) throw new Error('Chunk summarization failed');
+        if (!res.ok) throw new Error(`Summarization failed at chunk ${i + 1}`);
 
         const data = await res.json();
         summaries.push(data.summary || '');
       }
 
-      let finalRes;
-
+      let finalRes: Response;
       if (templateFile) {
         const formData = new FormData();
         formData.append('summaries', JSON.stringify(summaries));
@@ -80,7 +85,7 @@ export default function GenerateBudgetPage() {
       if (!finalRes.ok) throw new Error('Final budget generation failed');
 
       const finalData = await finalRes.json();
-      setBudgetResponse(finalData.budgetResponse);
+      setBudgetResponse(finalData.budgetResponse || 'No response generated.');
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       console.error('🔴 Frontend Error:', errorMessage);
@@ -91,18 +96,21 @@ export default function GenerateBudgetPage() {
     }
   };
 
-  const handleDownloadExcel = () => {
-    if (!budgetResponse) return;
+  const handleDownloadExcel = async () => {
+    if (!budgetResponse || !templateFile) return;
 
-    const blob = exportBudgetToExcel(budgetResponse);
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'PAMS_budget.xlsx';
-    link.click();
-
-    URL.revokeObjectURL(url);
+    try {
+      const blob = await exportBudgetToExcelFromTemplate(templateFile, budgetResponse);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'PAMS_budget.xlsx';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('🔴 Error generating Excel:', err);
+      setError('Failed to generate Excel file.');
+    }
   };
 
   return (
@@ -130,7 +138,7 @@ export default function GenerateBudgetPage() {
         <div className="flex justify-center mb-6">
           <button
             onClick={handleGenerate}
-            className="bg-green-600 text-white px-6 py-2 rounded-xl shadow hover:bg-green-700 transition-all duration-200"
+            className="bg-green-600 text-white px-6 py-2 rounded-xl shadow hover:bg-green-700 transition-all duration-200 disabled:opacity-50"
             disabled={loading || !proposalText}
           >
             {loading ? 'Generating...' : 'Generate Budget'}
@@ -157,7 +165,8 @@ export default function GenerateBudgetPage() {
             <div className="mt-4 flex justify-center">
               <button
                 onClick={handleDownloadExcel}
-                className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700 transition-all duration-200"
+                disabled={!templateFile}
+                className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700 transition-all duration-200 disabled:opacity-50"
               >
                 Download Excel
               </button>
