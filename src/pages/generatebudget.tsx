@@ -121,7 +121,7 @@ export default function GenerateBudgetPage() {
           <label className="block text-gray-800 font-medium mb-2">Optional: Upload Excel Template</label>
           <input
             type="file"
-            accept=".xlsx"
+            accept=".xlsx, .xlsm"
             onChange={handleTemplateUpload}
             className="block w-full text-sm text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm"
           />
