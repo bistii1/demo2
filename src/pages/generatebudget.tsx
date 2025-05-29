@@ -99,7 +99,7 @@ export default function GenerateBudgetPage() {
 
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'budget.xlsx';
+    link.download = 'PAMS_budget.xlsx';
     link.click();
 
     URL.revokeObjectURL(url);
@@ -121,7 +121,7 @@ export default function GenerateBudgetPage() {
           <label className="block text-gray-800 font-medium mb-2">Optional: Upload Excel Template</label>
           <input
             type="file"
-            accept=".xlsx, .xlsm"
+            accept=".xlsx,.xlsm"
             onChange={handleTemplateUpload}
             className="block w-full text-sm text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm"
           />
