@@ -65,7 +65,7 @@ export default function GenerateBudgetPage() {
         formData.append('summaries', JSON.stringify(summaries));
         formData.append('template', templateFile);
 
-        finalRes = await fetch('/api/generateBudgetWithTemplate', {
+        finalRes = await fetch('/api/generateWithTemplate', {
           method: 'POST',
           body: formData,
         });
