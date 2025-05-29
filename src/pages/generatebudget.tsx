@@ -97,22 +97,33 @@ export default function GenerateBudgetPage() {
   };
 
   const handleDownloadExcel = async () => {
-    if (!budgetResponse || !templateFile) return;
+  if (!budgetResponse || !templateFile) return;
 
-    try {
-      const arrayBuffer = await templateFile.arrayBuffer();
-      const blob = await exportBudgetToExcelFromTemplate(arrayBuffer, budgetResponse);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'PAMS_budget.xlsx';
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('🔴 Error generating Excel:', err);
-      setError('Failed to generate Excel file.');
-    }
-  };
+  try {
+    const arrayBuffer = await templateFile.arrayBuffer();
+
+    // Try parsing the string into a structured object
+    const parsedBudget: Record<string, {
+      Year1: number;
+      Year2: number;
+      Year3: number;
+      Total: number;
+      Justification: string;
+    }> = JSON.parse(budgetResponse);
+
+    const blob = await exportBudgetToExcelFromTemplate(arrayBuffer, parsedBudget);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'PAMS_budget.xlsx';
+    link.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('🔴 Error generating Excel:', err);
+    setError('Failed to generate Excel file.');
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-100 to-blue-200 py-10 px-4 font-sans">
