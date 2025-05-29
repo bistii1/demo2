@@ -65,7 +65,7 @@ export default function GenerateBudgetPage() {
         formData.append('summaries', JSON.stringify(summaries));
         formData.append('template', templateFile);
 
-        finalRes = await fetch('/api/generateWithTemplate', {
+        finalRes = await fetch('/api/generateBudgetWithTemplate', {
           method: 'POST',
           body: formData,
         });
@@ -94,12 +94,12 @@ export default function GenerateBudgetPage() {
   const handleDownloadExcel = () => {
     if (!budgetResponse) return;
 
-    const blob = exportBudgetToExcel(budgetResponse, true); // format like PAMS
+    const blob = exportBudgetToExcel(budgetResponse);
     const url = URL.createObjectURL(blob);
 
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'PAMS_budget.xlsx';
+    link.download = 'budget.xlsx';
     link.click();
 
     URL.revokeObjectURL(url);
@@ -157,7 +157,7 @@ export default function GenerateBudgetPage() {
                 onClick={handleDownloadExcel}
                 className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-blue-700 transition-all duration-200"
               >
-                Download PAMS Excel
+                Download Excel
               </button>
             </div>
           </section>

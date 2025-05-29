@@ -9,47 +9,45 @@ interface BudgetRow {
   Total: string;
 }
 
-export function exportBudgetToExcel(budgetText: string, formatPAMS = true): Blob {
-  if (!formatPAMS) {
-    throw new Error('Only formatPAMS is currently supported.');
-  }
-
+export function exportBudgetToExcel(budgetText: string): Blob {
   const lines = budgetText.split('\n').map(line => line.trim()).filter(Boolean);
 
   const rows: BudgetRow[] = [];
   let currentCategory = '';
+  let currentItem = '';
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // Detect category header
+    // Detect new category like "Personnel:"
     if (!line.startsWith('-') && !line.includes(':')) {
-      currentCategory = line.replace(/:$/, '');
+      currentCategory = line;
       continue;
     }
 
-    // Parse item
+    // Detect item line like "- Principal Investigator"
     if (line.startsWith('-')) {
-      const itemName = line.replace(/^-/, '').trim();
-
+      currentItem = line.replace(/^[-•]\s*/, '');
       const row: BudgetRow = {
         Category: currentCategory,
-        Item: itemName,
+        Item: currentItem,
         Year1: '',
         Year2: '',
         Year3: '',
         Total: '',
       };
 
-      // Check for next lines with Year1/2/3 and Total
+      // Look ahead for Year 1/2/3/Total lines
       while (i + 1 < lines.length && /^(Year \d|Total):/i.test(lines[i + 1])) {
-        const [label, value] = lines[++i].split(':').map(s => s.trim());
-        const cleanValue = value?.replace(/\$/g, '') ?? '';
+        const nextLine = lines[++i];
+        const [labelRaw, valueRaw] = nextLine.split(':');
+        const label = labelRaw?.trim().toLowerCase();
+        const value = valueRaw?.trim().replace(/\$/g, '') || '';
 
-        if (/^Year 1/i.test(label)) row.Year1 = cleanValue;
-        else if (/^Year 2/i.test(label)) row.Year2 = cleanValue;
-        else if (/^Year 3/i.test(label)) row.Year3 = cleanValue;
-        else if (/^Total/i.test(label)) row.Total = cleanValue;
+        if (label?.startsWith('year 1')) row.Year1 = value;
+        else if (label?.startsWith('year 2')) row.Year2 = value;
+        else if (label?.startsWith('year 3')) row.Year3 = value;
+        else if (label?.startsWith('total')) row.Total = value;
       }
 
       rows.push(row);
@@ -60,13 +58,13 @@ export function exportBudgetToExcel(budgetText: string, formatPAMS = true): Blob
     header: ['Category', 'Item', 'Year1', 'Year2', 'Year3', 'Total'],
   });
 
-  // Set column widths
+  // Format columns
   worksheet['!cols'] = [
     { wch: 20 },
     { wch: 30 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 12 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 15 },
     { wch: 15 },
   ];
 
