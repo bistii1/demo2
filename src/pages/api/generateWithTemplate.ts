@@ -3,7 +3,6 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import formidable from 'formidable';
 import OpenAI from 'openai';
 import * as XLSX from 'xlsx';
-import fs from 'fs';
 
 export const config = {
   api: {
@@ -12,6 +11,16 @@ export const config = {
 };
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
+interface BudgetCategory {
+  Year1: number;
+  Year2: number;
+  Year3: number;
+  Total: number;
+  Justification: string;
+}
+
+type BudgetResponse = Record<string, BudgetCategory>;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -57,21 +66,10 @@ Return your answer as valid JSON in this format:
     "Total": 315000,
     "Justification": "Short paragraph"
   },
-  "Fringe Benefits": { ... },
   ...
 }
-
-Only include these categories:
-- Personnel
-- Fringe Benefits
-- Equipment
-- Travel
-- Materials and Supplies
-- Other Direct Costs
-- Indirect Costs
-
 Do not include any explanation or formatting outside of the JSON.
-        `.trim(),
+          `.trim(),
         },
         { role: 'user', content: combined },
       ],
@@ -80,7 +78,7 @@ Do not include any explanation or formatting outside of the JSON.
     const responseText = completion.choices?.[0]?.message?.content?.trim();
     if (!responseText) throw new Error('No response from OpenAI');
 
-    const parsedBudget = JSON.parse(responseText);
+    const parsedBudget: BudgetResponse = JSON.parse(responseText);
 
     if (!parsed.templatePath) {
       return res.status(200).json({ budgetResponse: parsedBudget });
@@ -94,7 +92,7 @@ Do not include any explanation or formatting outside of the JSON.
       Year3: 'Budget Period #3',
     };
 
-    const baseCellRow = {
+    const baseCellRow: Record<string, number> = {
       'Personnel': 21,
       'Fringe Benefits': 22,
       'Equipment': 23,
@@ -105,30 +103,29 @@ Do not include any explanation or formatting outside of the JSON.
     };
 
     for (const [category, values] of Object.entries(parsedBudget)) {
-      const row = baseCellRow[category as keyof typeof baseCellRow];
+      const row = baseCellRow[category];
       if (!row) continue;
 
-      for (const [yearKey, value] of Object.entries(values as Record<string, any>)) {
-        if (yearKey === 'Total' || yearKey === 'Justification') continue;
-
-        const sheetName = yearSheetMap[yearKey as keyof typeof yearSheetMap];
+      for (const yearKey of ['Year1', 'Year2', 'Year3'] as const) {
+        const value = values[yearKey];
+        const sheetName = yearSheetMap[yearKey];
         const worksheet = workbook.Sheets[sheetName];
         const cell = 'C' + row;
 
-        worksheet[cell] = { t: 'n', v: value as number };
+        if (worksheet && value !== undefined) {
+          worksheet[cell] = { t: 'n', v: value };
+        }
       }
-
-      // Optionally: Add justification as comment or another sheet
     }
 
-    // Optional: add to Budget Summary
+    // Optional: fill Budget Summary
     const summarySheet = workbook.Sheets['Budget Summary'];
     for (const [category, values] of Object.entries(parsedBudget)) {
-      const row = baseCellRow[category as keyof typeof baseCellRow];
+      const row = baseCellRow[category];
       if (!row) continue;
+
       const cell = 'C' + row;
-      const typedValues = values as { [key: string]: any };
-      summarySheet[cell] = { t: 'n', v: typedValues.Total as number };
+      summarySheet[cell] = { t: 'n', v: values.Total };
     }
 
     const outputBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
