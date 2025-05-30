@@ -68,6 +68,17 @@ Return your answer as valid JSON in this format:
   },
   ...
 }
+  The tabs of the excel sheet are as follows:
+Instructions,
+Budget period #1-5
+Budget Summary
+SOW format
+Table
+ServTypeDesc
+Quick Lookup
+SLRs
+Rates
+Change Tracker
 Do not include any explanation or formatting outside of the JSON.
           `.trim(),
         },
