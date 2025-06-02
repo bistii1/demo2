@@ -5,7 +5,6 @@ import * as XLSX from 'xlsx';
 import { OpenAI } from 'openai';
 import clientPromise from '@/lib/mongodb';
 import { NextApiRequest, NextApiResponse } from 'next';
-import { Readable } from 'stream';
 
 export const config = {
   api: {
@@ -28,13 +27,6 @@ async function getLatestParsedProposalText(userEmail: string) {
     .toArray();
 
   return latest[0]?.parsedText?.draft || null;
-}
-
-function bufferToStream(buffer: Buffer): Readable {
-  const stream = new Readable();
-  stream.push(buffer);
-  stream.push(null);
-  return stream;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -93,7 +85,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const filledData = JSON.parse(aiResponse); // Expecting array of arrays
           const newSheet = XLSX.utils.aoa_to_sheet(filledData);
           workbook.Sheets[sheetName] = newSheet;
-        } catch (e) {
+        } catch (_e) {
           console.warn(`GPT response for tab "${sheetName}" was not valid JSON. Skipped.`);
         }
       }
