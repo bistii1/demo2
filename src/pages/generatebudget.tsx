@@ -1,11 +1,15 @@
 // pages/generateBudget.tsx
+'use client';
+
 import { useState } from 'react';
+import { useUser } from '@auth0/nextjs-auth0/client'; // adjust import based on your auth lib
 
 export default function GenerateBudget() {
   const [template, setTemplate] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const { user } = useUser(); // get user from Auth0
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTemplate(e.target.files?.[0] || null);
@@ -23,6 +27,7 @@ export default function GenerateBudget() {
 
     const formData = new FormData();
     formData.append('template', template);
+    formData.append('userEmail', user?.email || 'anonymous'); // send userEmail
 
     try {
       const res = await fetch('/api/generate-budget', {
@@ -30,14 +35,17 @@ export default function GenerateBudget() {
         body: formData,
       });
 
-      if (!res.ok) throw new Error('Failed to generate budget');
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to generate budget');
+      }
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       setDownloadUrl(url);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError('Something went wrong. Please try again.');
+      setError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }

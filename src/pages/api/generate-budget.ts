@@ -1,11 +1,12 @@
-// pages/api/generate-budget.ts
-import { IncomingForm } from 'formidable';
+// src/pages/api/generate-budget.ts
+import { NextApiRequest, NextApiResponse } from 'next';
+import formidable, { Fields, Files } from 'formidable';
 import { promises as fs } from 'fs';
 import * as XLSX from 'xlsx';
 import { OpenAI } from 'openai';
 import clientPromise from '@/lib/mongodb';
-import { NextApiRequest, NextApiResponse } from 'next';
 
+// Disable Next.js default body parser to use formidable
 export const config = {
   api: {
     bodyParser: false,
@@ -15,6 +16,17 @@ export const config = {
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+async function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files }> {
+  return new Promise((resolve, reject) => {
+    const form = new formidable.IncomingForm({ keepExtensions: true });
+
+    form.parse(req, (err, fields, files) => {
+      if (err) return reject(err);
+      resolve({ fields, files });
+    });
+  });
+}
 
 async function getLatestParsedProposalText(userEmail: string) {
   const client = await clientPromise;
@@ -34,73 +46,71 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  const form = new IncomingForm({ keepExtensions: true });
+  try {
+    const { fields, files } = await parseForm(req);
 
-  form.parse(req, async (err, fields, files) => {
-    if (err) {
-      console.error('Form parsing error:', err);
-      return res.status(500).json({ message: 'Form parsing failed' });
-    }
-
+    // Handle file - formidable returns Files type, file could be single or array
     const file = Array.isArray(files.template) ? files.template[0] : files.template;
-    if (!file || !file.filepath) {
+
+    if (!file || !('filepath' in file)) {
       return res.status(400).json({ message: 'No budget template uploaded' });
     }
 
-    try {
-      const buffer = await fs.readFile(file.filepath);
-      const userEmail = (Array.isArray(fields.userEmail) ? fields.userEmail[0] : fields.userEmail) || 'anonymous';
-      const proposalText = await getLatestParsedProposalText(userEmail);
+    const buffer = await fs.readFile(file.filepath);
+    const userEmail = Array.isArray(fields.userEmail)
+      ? fields.userEmail[0]
+      : fields.userEmail || 'anonymous';
 
-      if (!proposalText) {
-        return res.status(400).json({ message: 'No parsed draft proposal found.' });
-      }
+    const proposalText = await getLatestParsedProposalText(userEmail);
 
-      const workbook = XLSX.read(buffer, { type: 'buffer' });
-      const sheetNames = workbook.SheetNames;
+    if (!proposalText) {
+      return res.status(400).json({ message: 'No parsed draft proposal found.' });
+    }
 
-      for (const sheetName of sheetNames) {
-        const sheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetNames = workbook.SheetNames;
 
-        const response = await openai.chat.completions.create({
-          model: 'gpt-4-1106-preview',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a helpful assistant that completes federal research budget templates tab by tab.`,
-            },
-            {
-              role: 'user',
-              content: `Here is the text of a research proposal:\n\n${proposalText}\n\nThis is the "${sheetName}" tab of a PAMS-style budget template as raw array data:\n\n${JSON.stringify(json)}\n\nPlease fill in this tab with estimated values based on the proposal.`,
-            },
-          ],
-          temperature: 0.2,
-        });
+    for (const sheetName of sheetNames) {
+      const sheet = workbook.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
-        const aiResponse = response.choices[0]?.message?.content;
-        if (!aiResponse) continue;
-
-        try {
-          const filledData = JSON.parse(aiResponse); // Expecting array of arrays
-          const newSheet = XLSX.utils.aoa_to_sheet(filledData);
-          workbook.Sheets[sheetName] = newSheet;
-        } catch {
-          console.warn(`GPT response for tab "${sheetName}" was not valid JSON. Skipped.`);
-        }
-      }
-
-      const updatedBuffer = XLSX.write(workbook, {
-        type: 'buffer',
-        bookType: 'xlsm',
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4-1106-preview',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant that completes federal research budget templates tab by tab.',
+          },
+          {
+            role: 'user',
+            content: `Here is the text of a research proposal:\n\n${proposalText}\n\nThis is the "${sheetName}" tab of a PAMS-style budget template as raw array data:\n\n${JSON.stringify(json)}\n\nPlease fill in this tab with estimated values based on the proposal.`,
+          },
+        ],
+        temperature: 0.2,
       });
 
-      res.setHeader('Content-Disposition', 'attachment; filename=filled-budget.xlsm');
-      res.setHeader('Content-Type', 'application/vnd.ms-excel.sheet.macroEnabled.12');
-      res.send(updatedBuffer);
-    } catch (e) {
-      console.error('Error generating budget:', e);
-      res.status(500).json({ message: 'Internal server error' });
+      const aiResponse = response.choices[0]?.message?.content;
+      if (!aiResponse) continue;
+
+      try {
+        const filledData = JSON.parse(aiResponse); // Expecting array of arrays
+        const newSheet = XLSX.utils.aoa_to_sheet(filledData);
+        workbook.Sheets[sheetName] = newSheet;
+      } catch {
+        console.warn(`GPT response for tab "${sheetName}" was not valid JSON. Skipped.`);
+      }
     }
-  });
+
+    const updatedBuffer = XLSX.write(workbook, {
+      type: 'buffer',
+      bookType: 'xlsm',
+    });
+
+    res.setHeader('Content-Disposition', 'attachment; filename=filled-budget.xlsm');
+    res.setHeader('Content-Type', 'application/vnd.ms-excel.sheet.macroEnabled.12');
+    res.send(updatedBuffer);
+  } catch (error) {
+    console.error('Error generating budget:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 }
