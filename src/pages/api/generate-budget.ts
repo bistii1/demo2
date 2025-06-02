@@ -47,7 +47,6 @@ function extractJson(text: string): string | null {
   return jsonMatch ? jsonMatch[0] : null;
 }
 
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
@@ -146,7 +145,7 @@ Example:
         const filledData = JSON.parse(rawJson);
         const newSheet = XLSX.utils.aoa_to_sheet(filledData);
         workbook.Sheets[sheetName] = newSheet;
-      } catch (err) {
+      } catch {
         console.warn(`Extracted JSON for tab "${sheetName}" was invalid. Skipping.`);
       }
     }
