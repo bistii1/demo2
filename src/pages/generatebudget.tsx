@@ -1,4 +1,3 @@
-// pages/generateBudget.tsx
 'use client';
 
 import { useState } from 'react';
@@ -43,9 +42,10 @@ export default function GenerateBudget() {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       setDownloadUrl(url);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setError(err.message || 'Something went wrong. Please try again.');
+      const error = err instanceof Error ? err.message : String(err);
+      setError(error || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
