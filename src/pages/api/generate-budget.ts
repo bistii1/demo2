@@ -85,7 +85,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const filledData = JSON.parse(aiResponse); // Expecting array of arrays
           const newSheet = XLSX.utils.aoa_to_sheet(filledData);
           workbook.Sheets[sheetName] = newSheet;
-        } catch (_e) {
+        } catch {
           console.warn(`GPT response for tab "${sheetName}" was not valid JSON. Skipped.`);
         }
       }
