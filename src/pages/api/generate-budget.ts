@@ -41,6 +41,13 @@ async function getLatestParsedProposalText(userEmail: string) {
   return latest[0]?.parsedText?.draft || null;
 }
 
+function extractJson(text: string): string | null {
+  // Matches the first JSON array in the text (supports multi-line without 's' flag)
+  const jsonMatch = text.match(/\[[\s\S]*\]/);
+  return jsonMatch ? jsonMatch[0] : null;
+}
+
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
@@ -70,7 +77,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetNames = workbook.SheetNames;
 
+    // Tabs that don’t need filling or may cause parsing errors
+    const skipTabs = ['Instructions', 'Notes'];
+
+    // Limit length of proposal text to avoid token overflow
+    const maxProposalLength = 3000;
+    const shortProposalText =
+      proposalText.length > maxProposalLength
+        ? proposalText.slice(0, maxProposalLength) + '...'
+        : proposalText;
+
     for (const sheetName of sheetNames) {
+      if (skipTabs.includes(sheetName)) {
+        console.log(`Skipping tab "${sheetName}"`);
+        continue;
+      }
+
       const sheet = workbook.Sheets[sheetName];
       const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
@@ -79,14 +101,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful assistant that completes federal research budget templates tab by tab.',
+            content: `
+You are an assistant that only replies with valid JSON.
+
+Given the proposal text and the tab data, fill the tab as an array of arrays.
+
+DO NOT add explanations or any text outside of JSON.
+
+If you cannot fill a tab, return an empty array [].
+
+Respond ONLY with valid JSON array of arrays. 
+Example:
+[
+  ["Header1", "Header2"],
+  ["Value1", "Value2"]
+]
+            `,
             name: undefined,
           },
           {
             role: 'user',
-            content: `Here is the text of a research proposal:\n\n${proposalText}\n\nThis is the "${sheetName}" tab of a PAMS-style budget template as raw array data:\n\n${JSON.stringify(
+            content: `Here is the text of a research proposal:\n\n${shortProposalText}\n\nThis is the "${sheetName}" tab of a PAMS-style budget template as raw array data:\n\n${JSON.stringify(
               json,
-            )}\n\nPlease fill in this tab with estimated values based on the proposal. Return only a valid JSON array of arrays representing the tab contents.`,
+            )}\n\nPlease respond ONLY with a valid JSON array of arrays representing the filled tab contents.`,
             name: undefined,
           },
         ],
@@ -94,14 +131,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
 
       const aiResponse = response.choices[0]?.message?.content;
-      if (!aiResponse) continue;
+      if (!aiResponse) {
+        console.warn(`No response from GPT for tab "${sheetName}". Skipping.`);
+        continue;
+      }
+
+      const rawJson = extractJson(aiResponse);
+      if (!rawJson) {
+        console.warn(`No JSON found in GPT response for tab "${sheetName}". Skipping.`);
+        continue;
+      }
 
       try {
-        const filledData = JSON.parse(aiResponse); // Expecting an array of arrays from GPT
+        const filledData = JSON.parse(rawJson);
         const newSheet = XLSX.utils.aoa_to_sheet(filledData);
         workbook.Sheets[sheetName] = newSheet;
-      } catch {
-        console.warn(`GPT response for tab "${sheetName}" was not valid JSON. Skipped.`);
+      } catch (err) {
+        console.warn(`Extracted JSON for tab "${sheetName}" was invalid. Skipping.`);
       }
     }
 
