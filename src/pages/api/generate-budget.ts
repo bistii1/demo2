@@ -80,10 +80,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           {
             role: 'system',
             content: 'You are a helpful assistant that completes federal research budget templates tab by tab.',
+            name: undefined,
           },
           {
             role: 'user',
-            content: `Here is the text of a research proposal:\n\n${proposalText}\n\nThis is the "${sheetName}" tab of a PAMS-style budget template as raw array data:\n\n${JSON.stringify(json)}\n\nPlease fill in this tab with estimated values based on the proposal.`,
+            content: `Here is the text of a research proposal:\n\n${proposalText}\n\nThis is the "${sheetName}" tab of a PAMS-style budget template as raw array data:\n\n${JSON.stringify(
+              json,
+            )}\n\nPlease fill in this tab with estimated values based on the proposal. Return only a valid JSON array of arrays representing the tab contents.`,
+            name: undefined,
           },
         ],
         temperature: 0.2,
