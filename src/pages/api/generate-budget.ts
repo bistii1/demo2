@@ -1,12 +1,12 @@
 // src/pages/api/generate-budget.ts
 import { NextApiRequest, NextApiResponse } from 'next';
-import formidable, { Fields, Files } from 'formidable';
+import { IncomingForm, Fields, Files } from 'formidable';
 import { promises as fs } from 'fs';
 import * as XLSX from 'xlsx';
 import { OpenAI } from 'openai';
 import clientPromise from '@/lib/mongodb';
 
-// Disable Next.js default body parser to use formidable
+// Disable Next.js body parser so formidable can handle multipart form data
 export const config = {
   api: {
     bodyParser: false,
@@ -19,7 +19,7 @@ const openai = new OpenAI({
 
 async function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files }> {
   return new Promise((resolve, reject) => {
-    const form = new formidable.IncomingForm({ keepExtensions: true });
+    const form = new IncomingForm({ keepExtensions: true });
 
     form.parse(req, (err, fields, files) => {
       if (err) return reject(err);
@@ -49,9 +49,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { fields, files } = await parseForm(req);
 
-    console.log('Received fields:', fields);
-    console.log('Received files:', files);
-
     const file = Array.isArray(files.template) ? files.template[0] : files.template;
 
     if (!file || !('filepath' in file)) {
@@ -59,11 +56,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const buffer = await fs.readFile(file.filepath);
+
     const userEmail = Array.isArray(fields.userEmail)
       ? fields.userEmail[0]
       : fields.userEmail || 'anonymous';
-
-    console.log('User email:', userEmail);
 
     const proposalText = await getLatestParsedProposalText(userEmail);
 
@@ -71,59 +67,37 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ message: 'No parsed draft proposal found.' });
     }
 
-    console.log('Fetched proposal text length:', proposalText.length);
-
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetNames = workbook.SheetNames;
-
-    console.log('Workbook sheets:', sheetNames);
 
     for (const sheetName of sheetNames) {
       const sheet = workbook.Sheets[sheetName];
       const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
 
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a helpful assistant that completes federal research budget templates tab by tab.',
+          },
+          {
+            role: 'user',
+            content: `Here is the text of a research proposal:\n\n${proposalText}\n\nThis is the "${sheetName}" tab of a PAMS-style budget template as raw array data:\n\n${JSON.stringify(json)}\n\nPlease fill in this tab with estimated values based on the proposal.`,
+          },
+        ],
+        temperature: 0.2,
+      });
+
+      const aiResponse = response.choices[0]?.message?.content;
+      if (!aiResponse) continue;
+
       try {
-        const response = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content:
-                'You are a helpful assistant that completes federal research budget templates tab by tab.',
-            },
-            {
-              role: 'user',
-              content: `Here is the text of a research proposal:\n\n${proposalText}\n\nThis is the "${sheetName}" tab of a PAMS-style budget template as raw array data:\n\n${JSON.stringify(
-                json
-              )}\n\nPlease fill in this tab with estimated values based on the proposal.`,
-            },
-          ],
-          temperature: 0.2,
-        });
-
-        const aiResponse = response.choices[0]?.message?.content;
-        if (!aiResponse) {
-          console.warn(`No AI response for tab "${sheetName}". Skipping.`);
-          continue;
-        }
-
-        try {
-          const filledData = JSON.parse(aiResponse); // expecting array of arrays
-          const newSheet = XLSX.utils.aoa_to_sheet(filledData);
-          workbook.Sheets[sheetName] = newSheet;
-        } catch (jsonErr) {
-          console.warn(
-            `GPT response for tab "${sheetName}" was not valid JSON. Skipped.`,
-            jsonErr
-          );
-        }
-      } catch (openaiErr) {
-        console.error(`OpenAI API error on sheet "${sheetName}":`, openaiErr);
-        // Optionally: continue or return error here
-        return res.status(500).json({
-          message: `OpenAI API error on sheet "${sheetName}"`,
-          details: openaiErr instanceof Error ? openaiErr.message : String(openaiErr),
-        });
+        const filledData = JSON.parse(aiResponse); // Expecting an array of arrays from GPT
+        const newSheet = XLSX.utils.aoa_to_sheet(filledData);
+        workbook.Sheets[sheetName] = newSheet;
+      } catch {
+        console.warn(`GPT response for tab "${sheetName}" was not valid JSON. Skipped.`);
       }
     }
 
@@ -137,14 +111,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.send(updatedBuffer);
   } catch (error) {
     console.error('Error generating budget:', error);
-    if (error instanceof Error) {
-      res.status(500).json({
-        message: 'Internal server error',
-        details: error.message,
-        stack: error.stack,
-      });
-    } else {
-      res.status(500).json({ message: 'Internal server error' });
-    }
+    res.status(500).json({ message: 'Internal server error' });
   }
 }
