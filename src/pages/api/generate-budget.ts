@@ -29,7 +29,7 @@ You are a research proposal assistant. From the following chunk of a proposal dr
 
 Return the output in Markdown bullets grouped by category. If nothing budget-relevant is in this chunk, say “(No relevant content in this section).”
 
---- CHUNK #${index + 1} ---
+--- CHUNK ---
 
 ${chunk}
 
@@ -44,10 +44,10 @@ ${chunk}
     });
 
     const content = completion.choices[0]?.message?.content?.trim();
-    return content ? `### Chunk ${index + 1}\n${content}` : `### Chunk ${index + 1}\n(No content returned)`;
+    return content || '(No content returned)';
   } catch (error) {
     console.error(`Error processing chunk ${index + 1}:`, error);
-    return `### Chunk ${index + 1}\n(Error processing this chunk)`;
+    return '(Error processing this chunk)';
   }
 }
 
@@ -94,7 +94,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Process chunks in batches of 3 to avoid hitting rate limits and timeouts
     const extractedSections = await processInBatches(chunks, 3, summarizeChunk);
 
-    const draftNotes = extractedSections.join('\n\n');
+    // Join all chunks with a double newline for readability
+    const draftNotes = extractedSections.filter(Boolean).join('\n\n');
 
     res.status(200).json({ draftNotes });
   } catch (error) {
