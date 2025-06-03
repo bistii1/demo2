@@ -1,4 +1,3 @@
-// pages/api/generate-budget.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSession } from '@auth0/nextjs-auth0';
 import clientPromise from '@/lib/mongodb';
@@ -6,7 +5,6 @@ import OpenAI from 'openai';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-// Split text into chunks of maxChars size
 function chunkText(text: string, maxChars: number): string[] {
   const chunks = [];
   for (let i = 0; i < text.length; i += maxChars) {
@@ -15,10 +13,9 @@ function chunkText(text: string, maxChars: number): string[] {
   return chunks;
 }
 
-// Summarize a single chunk with budget extraction prompt
-async function summarizeChunk(chunk: string, index: number): Promise<string> {
+async function summarizeChunk(chunk: string): Promise<string> {
   const prompt = `
-You are a research proposal assistant. From the following chunk of a proposal draft, extract **only budget-relevant information**. This includes:
+You are a research proposal assistant. From the following section of a proposal draft, extract **only budget-relevant information**, such as:
 
 - People and roles
 - Salary, effort, time, or involvement
@@ -27,18 +24,14 @@ You are a research proposal assistant. From the following chunk of a proposal dr
 - Facilities or subcontracts
 - Any numeric values tied to budgeting
 
-Return the output in Markdown bullets grouped by category. If nothing budget-relevant is in this chunk, say “(No relevant content in this section).”
-
---- CHUNK ---
+Return the output as clean, concise, scannable bullet points grouped by category. Do not include section headers or chunk labels. If no budget-relevant info is found, say “(No relevant content in this section).”
 
 ${chunk}
-
---- END CHUNK ---
 `.trim();
 
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4-1106-preview', // GPT-4.1 aka o4-mini
+      model: 'gpt-4-1106-preview',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.3,
     });
@@ -46,24 +39,9 @@ ${chunk}
     const content = completion.choices[0]?.message?.content?.trim();
     return content || '(No content returned)';
   } catch (error) {
-    console.error(`Error processing chunk ${index + 1}:`, error);
-    return '(Error processing this chunk)';
+    console.error('Error summarizing chunk:', error);
+    return '(Error processing this section)';
   }
-}
-
-// Helper to process chunks in batches of N (to avoid too many parallel requests)
-async function processInBatches<T, R>(
-  items: T[],
-  batchSize: number,
-  handler: (item: T, index: number) => Promise<R>
-): Promise<R[]> {
-  const results: R[] = [];
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize);
-    const batchResults = await Promise.all(batch.map(handler));
-    results.push(...batchResults);
-  }
-  return results;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -77,6 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const client = await clientPromise;
     const db = client.db('pdfUploader');
+
     const latestUpload = await db
       .collection('uploads')
       .find({ userEmail })
@@ -89,13 +68,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: 'No parsed draft text found' });
     }
 
-    const chunks = chunkText(fullText, 2000); // chunk size roughly ~700 tokens
+    const chunks = chunkText(fullText, 6000); // larger chunks = fewer requests
+    const notes: string[] = [];
 
-    // Process chunks in batches of 3 to avoid hitting rate limits and timeouts
-    const extractedSections = await processInBatches(chunks, 3, summarizeChunk);
+    for (const chunk of chunks) {
+      const summary = await summarizeChunk(chunk);
+      notes.push(summary);
+    }
 
-    // Join all chunks with a double newline for readability
-    const draftNotes = extractedSections.filter(Boolean).join('\n\n');
+    const draftNotes = notes
+      .filter((note) => note && note.trim() !== '')
+      .join('\n\n');
 
     res.status(200).json({ draftNotes });
   } catch (error) {
