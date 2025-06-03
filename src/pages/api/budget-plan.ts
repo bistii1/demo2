@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import formidable, { File } from 'formidable';
+import { IncomingForm, File, Fields, Files } from 'formidable';
 import { promises as fs } from 'fs';
 import OpenAI from 'openai';
 
@@ -17,8 +17,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const form = new formidable.IncomingForm();
-    const { fields, files } = await new Promise<{ fields: formidable.Fields; files: formidable.Files }>((resolve, reject) => {
+    const form = new IncomingForm();
+    const { fields, files }: { fields: Fields; files: Files } = await new Promise((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) reject(err);
         else resolve({ fields, files });
@@ -37,9 +37,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const file = uploadedFile as File;
     const fileBuffer = await fs.readFile(file.filepath);
-    void fileBuffer; // Prevent unused variable error; remove when using fileBuffer
+    void fileBuffer; // Not used yet
 
-    // Your existing logic for calling OpenAI and responding goes here
     const prompt = `
 You are an expert research proposal assistant. You have the following budget draft notes extracted from a proposal:
 
