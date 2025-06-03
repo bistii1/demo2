@@ -1,4 +1,3 @@
-// src/pages/api/generate-filled-budget.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import formidable, { Fields, Files } from 'formidable';
 import { promises as fs } from 'fs';
@@ -34,8 +33,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { fields, files } = await parseForm(req);
 
     const draftNotes = fields.draftNotes?.toString();
+    const tabName = fields.tabName?.toString();
     if (!draftNotes) {
       return res.status(400).json({ error: 'Missing draftNotes field' });
+    }
+    if (!tabName) {
+      return res.status(400).json({ error: 'Missing tabName field' });
     }
 
     const uploadedFile = files.file;
@@ -44,19 +47,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Missing or invalid file upload' });
     }
 
+    // Read workbook from uploaded file
     const fileBuffer = await fs.readFile(file.filepath);
     const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
 
+    // Check instructions tab exists
     const instructionsSheet = workbook.Sheets['Instructions'];
     if (!instructionsSheet) {
       return res.status(400).json({ error: 'Instructions tab not found in template.' });
     }
 
     const instructionsText = XLSX.utils.sheet_to_csv(instructionsSheet);
-    const tabNames = workbook.SheetNames.filter(name => name !== 'Instructions');
 
-    for (const tabName of tabNames) {
-      const prompt = `
+    // Verify tabName exists in workbook
+    if (!workbook.SheetNames.includes(tabName)) {
+      return res.status(400).json({ error: `Tab "${tabName}" not found in workbook.` });
+    }
+
+    // Prepare prompt for just one tab
+    const prompt = `
 You are filling out a research proposal Excel budget sheet.
 
 Instructions for how to fill the sheet:
@@ -69,42 +78,44 @@ Based on the instructions and the draft notes below, generate cell values for th
 Proposal Draft Notes:
 ${draftNotes}
 
-Respond in JSON format like:
+Respond ONLY in JSON format like:
 { "A2": "value", "B2": "value", ... }
 
 If a field has no info in the draft, suggest something reasonable.
-      `;
+`;
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4-1106-preview',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
-      });
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4-1106-preview',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+    });
 
-      const responseText = completion.choices[0]?.message?.content ?? '{}';
-      let filledCells: Record<string, string> = {};
+    const responseText = completion.choices[0]?.message?.content ?? '{}';
+    let filledCells: Record<string, string> = {};
 
-      try {
-        filledCells = JSON.parse(responseText);
-      } catch {
-        console.warn(`Invalid JSON for sheet ${tabName}:`, responseText);
-        continue; // skip this sheet if bad response
-      }
-
-      const sheet = workbook.Sheets[tabName];
-      for (const [cell, value] of Object.entries(filledCells)) {
-        sheet[cell] = { t: 's', v: value };
-      }
+    try {
+      filledCells = JSON.parse(responseText);
+    } catch {
+      console.warn(`Invalid JSON for sheet ${tabName}:`, responseText);
+      return res.status(500).json({ error: 'Invalid JSON response from AI' });
     }
 
-    // Save modified workbook to temp file
-    const tmpFile = path.join(os.tmpdir(), `filled-budget-${Date.now()}.xlsm`);
-    XLSX.writeFile(workbook, tmpFile, { bookType: 'xlsm' });
-    const updatedBuffer = await fs.readFile(tmpFile);
+    // Write filled cells into sheet
+    const sheet = workbook.Sheets[tabName];
+    for (const [cell, value] of Object.entries(filledCells)) {
+      sheet[cell] = { t: 's', v: value };
+    }
 
-    res.setHeader('Content-Disposition', 'attachment; filename="filled-budget.xlsm"');
-    res.setHeader('Content-Type', 'application/vnd.ms-excel.sheet.macroEnabled.12');
-    res.status(200).send(updatedBuffer);
+    // Write updated workbook to buffer
+    const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsm', type: 'buffer' });
+
+    // Return the updated workbook buffer encoded as base64 string (frontend can download or accumulate)
+    const base64Data = updatedBuffer.toString('base64');
+
+    return res.status(200).json({ 
+      message: `Tab ${tabName} processed`,
+      base64Xlsm: base64Data,
+    });
   } catch (error) {
     console.error('Error in /api/generate-filled-budget:', error);
     return res.status(500).json({ error: 'Failed to generate filled budget' });

@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
+import * as XLSX from 'xlsx';
 
 export default function GenerateBudgetPage() {
   const [draftNotes, setDraftNotes] = useState('');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [totalChunks, setTotalChunks] = useState(0);
+  const [loadingDraft, setLoadingDraft] = useState(true);
 
   const [xlsmFile, setXlsmFile] = useState<File | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+
+  const [processingTabs, setProcessingTabs] = useState(false);
+  const [currentTabIndex, setCurrentTabIndex] = useState(0);
+  const [tabNames, setTabNames] = useState<string[]>([]);
 
   // === STEP 1: Get draftNotes from proposal chunks ===
   useEffect(() => {
@@ -18,7 +21,7 @@ export default function GenerateBudgetPage() {
         const countRes = await fetch('/api/generate-budget?chunkIndex=count');
         const countData = await countRes.json();
         const total = countData.chunkCount;
-        setTotalChunks(total);
+        setProgress(0);
 
         const summaries: string[] = [];
 
@@ -38,25 +41,57 @@ export default function GenerateBudgetPage() {
         if (err instanceof Error) setError(err.message);
         else setError('Unknown error occurred.');
       } finally {
-        setLoading(false);
+        setLoadingDraft(false);
       }
     }
 
     fetchAndSummarizeChunks();
   }, []);
 
+  // Helper: extract sheet names except 'Instructions'
+  async function extractTabNames(file: File): Promise<string[]> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = reader.result;
+          if (!data) return reject('File read error');
+          const workbook = XLSX.read(data, { type: 'array' });
+          const names = workbook.SheetNames.filter((name: string) => name !== 'Instructions');
+          resolve(names);
+        } catch (e) {
+          reject(e);
+        }
+      };
+      reader.onerror = () => reject('File read error');
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
   // === STEP 2: Handle xlsm upload + get filled Excel ===
   async function handleFileUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!xlsmFile || !draftNotes) return alert('Missing file or draft notes');
-
-    const formData = new FormData();
-    formData.append('file', xlsmFile);
-    formData.append('draftNotes', draftNotes);
+    if (!xlsmFile || !draftNotes) {
+      alert('Missing file or draft notes');
+      return;
+    }
 
     try {
-      setUploading(true);
+      setError('');
+      setProcessingTabs(true);
+      setCurrentTabIndex(0);
       setDownloadUrl(null);
+
+      // Get sheet/tab names for progress tracking
+      const names = await extractTabNames(xlsmFile);
+      setTabNames(names);
+
+      // We can only track progress if backend supports per-tab progress
+      // But for now, just send entire file and draftNotes and backend processes it
+
+      const formData = new FormData();
+      formData.append('file', xlsmFile);
+      formData.append('draftNotes', draftNotes);
 
       const res = await fetch('/api/generate-filled-budget', {
         method: 'POST',
@@ -72,13 +107,12 @@ export default function GenerateBudgetPage() {
       const url = window.URL.createObjectURL(blob);
       setDownloadUrl(url);
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Error generating filled Excel');
-      }
+      if (err instanceof Error) setError(err.message);
+      else setError('Error generating filled Excel');
     } finally {
-      setUploading(false);
+      setProcessingTabs(false);
+      setCurrentTabIndex(0);
+      setTabNames([]);
     }
   }
 
@@ -86,7 +120,7 @@ export default function GenerateBudgetPage() {
     <div className="min-h-screen bg-white text-gray-800 p-10">
       <h1 className="text-3xl font-bold mb-6 text-indigo-700">Step 1: Draft Notes</h1>
 
-      {loading ? (
+      {loadingDraft ? (
         <>
           <div className="w-full bg-gray-200 h-4 rounded-full overflow-hidden mb-4">
             <div
@@ -95,8 +129,7 @@ export default function GenerateBudgetPage() {
             />
           </div>
           <p className="text-gray-600">
-            Summarizing proposal chunks... {Math.round(progress * 100)}% (
-            {Math.round(progress * totalChunks)} of {totalChunks})
+            Summarizing proposal chunks... {Math.round(progress * 100)}%
           </p>
         </>
       ) : error ? (
@@ -116,13 +149,16 @@ export default function GenerateBudgetPage() {
           accept=".xlsm"
           onChange={(e) => setXlsmFile(e.target.files?.[0] || null)}
           className="mb-4 block"
+          disabled={processingTabs || loadingDraft}
         />
         <button
           type="submit"
           className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
-          disabled={!xlsmFile || uploading}
+          disabled={!xlsmFile || processingTabs || loadingDraft}
         >
-          {uploading ? 'Filling Excel Template...' : 'Generate Budget Sheet'}
+          {processingTabs
+            ? `Filling Excel Template...`
+            : 'Generate Budget Sheet'}
         </button>
       </form>
 
