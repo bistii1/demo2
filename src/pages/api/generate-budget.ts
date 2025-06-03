@@ -1,6 +1,6 @@
 // src/pages/api/generate-budget.ts
 import { NextApiRequest, NextApiResponse } from 'next';
-import { IncomingForm, Fields, Files } from 'formidable';
+import { IncomingForm, Fields, Files, File as FormidableFile } from 'formidable';
 import { promises as fs } from 'fs';
 import * as XLSX from 'xlsx';
 import { OpenAI } from 'openai';
@@ -17,10 +17,13 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Typing for the parsed Formidable file
+type ParsedFile = FormidableFile;
+
+// Parsing multipart form data
 async function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files }> {
   return new Promise((resolve, reject) => {
     const form = new IncomingForm({ keepExtensions: true });
-
     form.parse(req, (err, fields, files) => {
       if (err) return reject(err);
       resolve({ fields, files });
@@ -28,7 +31,8 @@ async function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: 
   });
 }
 
-async function getLatestParsedProposalText(userEmail: string) {
+// Fetch latest parsed proposal text from MongoDB for the given user email
+async function getLatestParsedProposalText(userEmail: string): Promise<string | null> {
   const client = await clientPromise;
   const db = client.db('pdfUploader');
   const latest = await db
@@ -41,6 +45,7 @@ async function getLatestParsedProposalText(userEmail: string) {
   return latest[0]?.parsedText?.draft || null;
 }
 
+// Extract JSON substring from GPT response
 function extractJson(text: string): string | null {
   // Matches the first JSON array in the text (supports multi-line without 's' flag)
   const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -55,13 +60,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { fields, files } = await parseForm(req);
 
-    const file = Array.isArray(files.template) ? files.template[0] : files.template;
+    // File could be array or single file, type guard for FormidableFile
+    const file = Array.isArray(files.template)
+      ? files.template[0]
+      : files.template;
 
-    if (!file || !('filepath' in file)) {
+    if (!file || typeof file !== 'object' || !('filepath' in file)) {
       return res.status(400).json({ message: 'No budget template uploaded' });
     }
 
-    const buffer = await fs.readFile(file.filepath);
+    const buffer = await fs.readFile((file as ParsedFile).filepath);
 
     const userEmail = Array.isArray(fields.userEmail)
       ? fields.userEmail[0]
@@ -76,10 +84,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetNames = workbook.SheetNames;
 
-    // Tabs that don’t need filling or may cause parsing errors
     const skipTabs = ['Instructions', 'Notes'];
 
-    // Limit length of proposal text to avoid token overflow
     const maxProposalLength = 3000;
     const shortProposalText =
       proposalText.length > maxProposalLength
@@ -93,7 +99,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       const sheet = workbook.Sheets[sheetName];
-      const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+      // Fix ESLint no-explicit-any here by typing cells explicitly:
+      // XLSX.utils.sheet_to_json returns any[], but we expect an array of arrays representing rows and cells
+      // Use type union for cell values
+      type CellValue = string | number | boolean | null;
+      const json = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as CellValue[][];
 
       const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -140,8 +151,7 @@ Example:
       }
 
       try {
-        // Assert type so TS knows it's a 2D array
-        const filledData = JSON.parse(rawJson) as any[][];
+        const filledData = JSON.parse(rawJson) as CellValue[][];
         const newSheet = XLSX.utils.aoa_to_sheet(filledData);
         workbook.Sheets[sheetName] = newSheet;
       } catch {
