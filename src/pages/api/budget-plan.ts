@@ -24,6 +24,16 @@ function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files 
   });
 }
 
+// Clean up markdown asterisks and bullet symbols
+function formatWritePlan(raw: string): string {
+  return raw
+    .replace(/\*\*(.*?)\*\*/g, '$1')        // Remove bold
+    .replace(/\*(.*?)\*/g, '$1')            // Remove italic
+    .replace(/^- /gm, '• ')                 // Convert markdown bullets to bullets
+    .replace(/\n{3,}/g, '\n\n')             // Collapse excessive newlines
+    .trim();
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Only POST allowed' });
@@ -65,7 +75,9 @@ The plan should be clear, concise, and organized by sheet/tab name. Include any 
       temperature: 0.3,
     });
 
-    const writePlan = completion.choices[0]?.message?.content?.trim() ?? '(No plan generated)';
+    const rawPlan = completion.choices[0]?.message?.content?.trim() ?? '(No plan generated)';
+    const writePlan = formatWritePlan(rawPlan);
+
     return res.status(200).json({ writePlan });
   } catch (error) {
     console.error('Error in /api/budget-plan:', error);
