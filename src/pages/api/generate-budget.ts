@@ -1,204 +1,83 @@
-// src/pages/api/generate-budget.ts
-import { NextApiRequest, NextApiResponse } from 'next';
-import { IncomingForm, Fields, Files, File as FormidableFile } from 'formidable';
-import { promises as fs } from 'fs';
-import * as XLSX from 'xlsx';
-import { OpenAI } from 'openai';
+// pages/api/generate-budget.ts
+import type { NextApiRequest, NextApiResponse } from 'next';
 import clientPromise from '@/lib/mongodb';
-
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+import { getSession } from '@auth0/nextjs-auth0';
+import OpenAI from 'openai';
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY!,
 });
 
-type ParsedFile = FormidableFile;
-type CellValue = string | number | boolean | null;
-
-// Parse multipart form with formidable
-async function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files }> {
-  return new Promise((resolve, reject) => {
-    const form = new IncomingForm({ keepExtensions: true });
-    form.parse(req, (err, fields, files) => {
-      if (err) return reject(err);
-      resolve({ fields, files });
-    });
-  });
-}
-
-// Get latest parsed draft text for the user from MongoDB
-async function getLatestParsedProposalText(userEmail: string): Promise<string | null> {
-  const client = await clientPromise;
-  const db = client.db('pdfUploader');
-  const latest = await db
-    .collection('uploads')
-    .find({ userEmail })
-    .sort({ uploadedAt: -1 })
-    .limit(1)
-    .toArray();
-
-  return latest[0]?.parsedText?.draft || null;
-}
-
-// Safe JSON parse with fallback to null
-function safeJsonParse<T>(str: string): T | null {
-  try {
-    return JSON.parse(str) as T;
-  } catch {
-    return null;
+function chunkText(text: string, maxChars: number): string[] {
+  const chunks = [];
+  for (let i = 0; i < text.length; i += maxChars) {
+    chunks.push(text.slice(i, i + maxChars));
   }
+  return chunks;
 }
 
-// Step 1: Analyze Excel template structure using GPT
-async function analyzeTemplateWithGPT(tabsData: Record<string, CellValue[][]>): Promise<Record<string, string>> {
-  const prompt = `
-You are an assistant that analyzes a budget Excel template.
-For each tab, summarize the key headers and what kind of data should be filled.
-Respond ONLY with a JSON object mapping tab names to a description string.
-
-Example:
-{
-  "Tab1": "Headers: A,B,C. Fill numeric budget values.",
-  "Tab2": "Personnel costs breakdown."
-}
-Here is the template data (JSON arrays per tab):
-${JSON.stringify(tabsData, null, 2)}
-`;
-
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: 'You respond ONLY with JSON.' },
-      { role: 'user', content: prompt },
-    ],
-    temperature: 0.0,
-  });
-
-  const content = response.choices[0]?.message?.content || '';
-  const parsed = safeJsonParse<Record<string, string>>(content);
-  if (!parsed) {
-    throw new Error('Failed to parse GPT template analysis response');
-  }
-  return parsed;
-}
-
-// Step 2: Extract budget data from draft text with GPT based on template summary
-async function extractBudgetFromDraftWithGPT(
-  draftText: string,
-  templateSummary: Record<string, string>,
-): Promise<Record<string, CellValue[][]>> {
-  const prompt = `
-You are an assistant extracting budget data from a research proposal draft.
-
-Based on this budget template summary:
-${JSON.stringify(templateSummary, null, 2)}
-
-Here is the proposal draft text:
-${draftText}
-
-Return ONLY a JSON object mapping each tab name to a filled 2D array of data matching the tab format.
-Example:
-{
-  "Tab1": [["Header1", "Header2"], ["1000", "2000"]],
-  "Tab2": [["Personnel", "Amount"], ["John Doe", "50000"]]
-}
-If you cannot fill a tab, return an empty array [].
-`;
-
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      { role: 'system', content: 'You respond ONLY with valid JSON.' },
-      { role: 'user', content: prompt },
-    ],
-    temperature: 0.2,
-    max_tokens: 1500,
-  });
-
-  const content = response.choices[0]?.message?.content || '';
-  const parsed = safeJsonParse<Record<string, CellValue[][]>>(content);
-  if (!parsed) {
-    throw new Error('Failed to parse GPT budget extraction response');
-  }
-  return parsed;
-}
-
-// API handler
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Only GET allowed' });
   }
 
   try {
-    const { fields, files } = await parseForm(req);
+    const session = await getSession(req, res);
+    const userEmail = session?.user?.email || 'anonymous';
 
-    const file = Array.isArray(files.template)
-      ? files.template[0]
-      : files.template;
+    const client = await clientPromise;
+    const db = client.db('pdfUploader');
+    const latestUpload = await db.collection('uploads')
+      .find({ userEmail })
+      .sort({ uploadedAt: -1 })
+      .limit(1)
+      .toArray();
 
-    if (!file || typeof file !== 'object' || !('filepath' in file)) {
-      return res.status(400).json({ message: 'No budget template uploaded' });
+    if (!latestUpload.length || !latestUpload[0].parsedText?.draft) {
+      return res.status(404).json({ error: 'No parsed draft text found' });
     }
 
-    const buffer = await fs.readFile((file as ParsedFile).filepath);
+    const fullText = latestUpload[0].parsedText.draft;
+    const chunks = chunkText(fullText, 3000); // ~1000 tokens per chunk
+    const extractedSections: string[] = [];
 
-    const userEmail = Array.isArray(fields.userEmail)
-      ? fields.userEmail[0]
-      : fields.userEmail || 'anonymous';
+    for (const [index, chunk] of chunks.entries()) {
+      const prompt = `
+You are a research proposal assistant. From the following chunk of a proposal draft, extract **only budget-relevant information**. This includes:
 
-    const proposalText = await getLatestParsedProposalText(userEmail);
+- People and roles
+- Salary, effort, time, or involvement
+- Equipment, materials, software, services
+- Travel, lodging, transportation
+- Facilities or subcontracts
+- Any numeric values tied to budgeting
 
-    if (!proposalText) {
-      return res.status(400).json({ message: 'No parsed draft proposal found.' });
-    }
+Return the output in Markdown bullets grouped by category. If nothing budget-relevant is in this chunk, say “(No relevant content in this section).”
 
-    // Read Excel workbook and convert all sheets (except skipped) to JSON arrays
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheetNames = workbook.SheetNames;
+--- CHUNK #${index + 1} ---
 
-    const skipTabs = ['Instructions', 'Notes'];
-    const tabsData: Record<string, CellValue[][]> = {};
+${chunk}
 
-    for (const sheetName of sheetNames) {
-      if (skipTabs.includes(sheetName)) continue;
-      const sheet = workbook.Sheets[sheetName];
-      const json = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as CellValue[][];
-      tabsData[sheetName] = json;
-    }
+--- END CHUNK ---
+      `.trim();
 
-    // Step 1: Analyze template structure with GPT
-    const templateSummary = await analyzeTemplateWithGPT(tabsData);
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4-1106-preview', // GPT-4.1 aka o4-mini
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+      });
 
-    // Step 2: Extract budget data from draft text using GPT
-    const budgetData = await extractBudgetFromDraftWithGPT(proposalText, templateSummary);
-
-    // Step 3: Write extracted budget data back into workbook sheets
-    for (const [tabName, tabData] of Object.entries(budgetData)) {
-      if (!sheetNames.includes(tabName) || skipTabs.includes(tabName)) continue;
-      try {
-        const newSheet = XLSX.utils.aoa_to_sheet(tabData);
-        workbook.Sheets[tabName] = newSheet;
-      } catch (err) {
-        console.warn(`Failed to write data for tab "${tabName}":`, err);
+      const chunkOutput = response.choices[0]?.message?.content?.trim();
+      if (chunkOutput) {
+        extractedSections.push(`### Chunk ${index + 1}\n${chunkOutput}`);
       }
     }
 
-    // Generate updated Excel buffer as xlsm
-    const updatedBuffer = XLSX.write(workbook, {
-      type: 'buffer',
-      bookType: 'xlsm',
-    });
+    const draftNotes = extractedSections.join('\n\n');
 
-    // Send filled template as download
-    res.setHeader('Content-Disposition', 'attachment; filename=filled-budget.xlsm');
-    res.setHeader('Content-Type', 'application/vnd.ms-excel.sheet.macroEnabled.12');
-    res.send(updatedBuffer);
+    res.status(200).json({ draftNotes });
   } catch (error) {
-    console.error('Error generating budget:', error);
-    res.status(500).json({ message: 'Internal server error', error: String(error) });
+    console.error('Error generating draft notes:', error);
+    res.status(500).json({ error: 'Failed to generate draft notes' });
   }
 }

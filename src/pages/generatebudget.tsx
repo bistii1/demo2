@@ -1,95 +1,40 @@
-'use client';
+// pages/generatebudget.tsx
+import { useEffect, useState } from 'react';
 
-import { useState } from 'react';
-import { useUser } from '@auth0/nextjs-auth0/client'; // adjust import based on your auth lib
-
-export default function GenerateBudget() {
-  const [template, setTemplate] = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+export default function GenerateBudgetPage() {
+  const [draftNotes, setDraftNotes] = useState('');
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const { user } = useUser(); // get user from Auth0
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setTemplate(e.target.files?.[0] || null);
-  };
-
-  const handleSubmit = async () => {
-    if (!template) {
-      setError('Please upload a PAMS budget Excel template (.xlsm)');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-    setDownloadUrl(null);
-
-    const formData = new FormData();
-    formData.append('template', template);
-    formData.append('userEmail', user?.email || 'anonymous'); // send userEmail
-
-    try {
-      const res = await fetch('/api/generate-budget', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Failed to generate budget');
+  useEffect(() => {
+    async function fetchDraftNotes() {
+      try {
+        const res = await fetch('/api/generate-budget');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Unknown error');
+        setDraftNotes(data.draftNotes);
+      } catch (err: any) {
+        setError(err.message || 'Failed to load draft notes.');
+      } finally {
+        setLoading(false);
       }
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      setDownloadUrl(url);
-    } catch (err) {
-      console.error(err);
-      const error = err instanceof Error ? err.message : String(err);
-      setError(error || 'Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
     }
-  };
+
+    fetchDraftNotes();
+  }, []);
 
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6">
-      <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-xl border border-gray-200">
-        <h1 className="text-3xl font-bold text-center text-indigo-700 mb-4">
-          Generate Budget Sheet
-        </h1>
-        <p className="text-center text-gray-600 mb-6">
-          Upload your PAMS-style Excel sheet (.xlsm). We’ll fill it in using your uploaded proposal.
-        </p>
+    <div className="min-h-screen bg-white text-gray-800 p-10">
+      <h1 className="text-3xl font-bold mb-6 text-indigo-700">Step 1: Draft Notes</h1>
+      
+      {loading && <p>Extracting draft notes from your proposal...</p>}
+      {error && <p className="text-red-600 font-semibold">{error}</p>}
 
-        <input
-          type="file"
-          accept=".xlsm"
-          onChange={handleFileChange}
-          className="mb-4 w-full"
-        />
-
-        <button
-          onClick={handleSubmit}
-          disabled={loading}
-          className="bg-indigo-600 text-white px-6 py-3 rounded-lg shadow hover:bg-indigo-700 transition w-full font-semibold"
-        >
-          {loading ? 'Generating...' : 'Generate Budget'}
-        </button>
-
-        {error && <p className="text-red-600 mt-4 text-center">{error}</p>}
-
-        {downloadUrl && (
-          <div className="mt-6 text-center">
-            <a
-              href={downloadUrl}
-              download="filled-budget.xlsm"
-              className="text-green-600 font-semibold underline"
-            >
-              Download Filled Budget Sheet
-            </a>
-          </div>
-        )}
-      </div>
+      {!loading && !error && (
+        <div className="bg-gray-100 border border-gray-300 rounded-lg p-6 whitespace-pre-wrap shadow-md">
+          {draftNotes}
+        </div>
+      )}
     </div>
   );
 }
