@@ -1,6 +1,6 @@
 // /src/pages/api/budget-plan.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import formidable, { File, Files, Fields } from 'formidable';
+import formidable, { Fields, Files } from 'formidable';
 import { promises as fs } from 'fs';
 import OpenAI from 'openai';
 
