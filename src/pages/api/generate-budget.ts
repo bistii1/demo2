@@ -1,4 +1,3 @@
-// src/pages/api/generate-budget.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { IncomingForm, Fields, Files, File as FormidableFile } from 'formidable';
 import { promises as fs } from 'fs';
@@ -17,10 +16,8 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Typing for the parsed Formidable file
 type ParsedFile = FormidableFile;
 
-// Parsing multipart form data
 async function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files }> {
   return new Promise((resolve, reject) => {
     const form = new IncomingForm({ keepExtensions: true });
@@ -31,7 +28,6 @@ async function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: 
   });
 }
 
-// Fetch latest parsed proposal text from MongoDB for the given user email
 async function getLatestParsedProposalText(userEmail: string): Promise<string | null> {
   const client = await clientPromise;
   const db = client.db('pdfUploader');
@@ -45,10 +41,9 @@ async function getLatestParsedProposalText(userEmail: string): Promise<string | 
   return latest[0]?.parsedText?.draft || null;
 }
 
-// Extract JSON substring from GPT response
+// Improved JSON extractor: tries to find first JSON array in text
 function extractJson(text: string): string | null {
-  // Matches the first JSON array in the text (supports multi-line without 's' flag)
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
+  const jsonMatch = text.match(/\[[\s\S]*?\]/);
   return jsonMatch ? jsonMatch[0] : null;
 }
 
@@ -60,7 +55,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { fields, files } = await parseForm(req);
 
-    // File could be array or single file, type guard for FormidableFile
     const file = Array.isArray(files.template)
       ? files.template[0]
       : files.template;
@@ -83,7 +77,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetNames = workbook.SheetNames;
-
     const skipTabs = ['Instructions', 'Notes'];
 
     const maxProposalLength = 3000;
@@ -92,26 +85,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ? proposalText.slice(0, maxProposalLength) + '...'
         : proposalText;
 
-    for (const sheetName of sheetNames) {
-      if (skipTabs.includes(sheetName)) {
-        console.log(`Skipping tab "${sheetName}"`);
-        continue;
-      }
+    type CellValue = string | number | boolean | null;
 
-      const sheet = workbook.Sheets[sheetName];
+    // Run GPT calls in parallel per tab to avoid timeout
+    await Promise.all(
+      sheetNames.map(async (sheetName) => {
+        if (skipTabs.includes(sheetName)) {
+          console.log(`Skipping tab "${sheetName}"`);
+          return;
+        }
 
-      // Fix ESLint no-explicit-any here by typing cells explicitly:
-      // XLSX.utils.sheet_to_json returns any[], but we expect an array of arrays representing rows and cells
-      // Use type union for cell values
-      type CellValue = string | number | boolean | null;
-      const json = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as CellValue[][];
+        const sheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as CellValue[][];
 
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: `
+        try {
+          const response = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: `
 You are an assistant that only replies with valid JSON.
 
 Given the proposal text and the tab data, fill the tab as an array of arrays.
@@ -120,44 +113,49 @@ DO NOT add explanations or any text outside of JSON.
 
 If you cannot fill a tab, return an empty array [].
 
-Respond ONLY with valid JSON array of arrays. 
+Respond ONLY with valid JSON array of arrays.
+
 Example:
 [
   ["Header1", "Header2"],
   ["Value1", "Value2"]
 ]
-            `,
-          },
-          {
-            role: 'user',
-            content: `Here is the text of a research proposal:\n\n${shortProposalText}\n\nThis is the "${sheetName}" tab of a PAMS-style budget template as raw array data:\n\n${JSON.stringify(
-              json,
-            )}\n\nPlease respond ONLY with a valid JSON array of arrays representing the filled tab contents.`,
-          },
-        ],
-        temperature: 0.2,
-      });
+                `,
+              },
+              {
+                role: 'user',
+                content: `Here is the text of a research proposal:\n\n${shortProposalText}\n\nThis is the "${sheetName}" tab of a PAMS-style budget template as raw array data:\n\n${JSON.stringify(
+                  json,
+                )}\n\nPlease respond ONLY with a valid JSON array of arrays representing the filled tab contents.`,
+              },
+            ],
+            temperature: 0.2,
+          });
 
-      const aiResponse = response.choices[0]?.message?.content;
-      if (!aiResponse) {
-        console.warn(`No response from GPT for tab "${sheetName}". Skipping.`);
-        continue;
-      }
+          const aiResponse = response.choices[0]?.message?.content;
+          if (!aiResponse) {
+            console.warn(`No response from GPT for tab "${sheetName}". Skipping.`);
+            return;
+          }
 
-      const rawJson = extractJson(aiResponse);
-      if (!rawJson) {
-        console.warn(`No JSON found in GPT response for tab "${sheetName}". Skipping.`);
-        continue;
-      }
+          const rawJson = extractJson(aiResponse);
+          if (!rawJson) {
+            console.warn(`No JSON found in GPT response for tab "${sheetName}". Skipping. Response was: ${aiResponse}`);
+            return;
+          }
 
-      try {
-        const filledData = JSON.parse(rawJson) as CellValue[][];
-        const newSheet = XLSX.utils.aoa_to_sheet(filledData);
-        workbook.Sheets[sheetName] = newSheet;
-      } catch {
-        console.warn(`Extracted JSON for tab "${sheetName}" was invalid. Skipping.`);
-      }
-    }
+          try {
+            const filledData = JSON.parse(rawJson) as CellValue[][];
+            const newSheet = XLSX.utils.aoa_to_sheet(filledData);
+            workbook.Sheets[sheetName] = newSheet;
+          } catch (parseError) {
+            console.warn(`Invalid JSON from GPT for tab "${sheetName}". Skipping. Error: ${parseError}`);
+          }
+        } catch (err) {
+          console.error(`OpenAI API error for tab "${sheetName}":`, err);
+        }
+      }),
+    );
 
     const updatedBuffer = XLSX.write(workbook, {
       type: 'buffer',
