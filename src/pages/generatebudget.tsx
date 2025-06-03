@@ -8,8 +8,8 @@ export default function GenerateBudgetPage() {
   const [totalChunks, setTotalChunks] = useState(0);
 
   const [xlsmFile, setXlsmFile] = useState<File | null>(null);
-  const [planLoading, setPlanLoading] = useState(false);
-  const [writePlan, setWritePlan] = useState('');
+  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // === STEP 1: Get draftNotes from proposal chunks ===
   useEffect(() => {
@@ -45,7 +45,7 @@ export default function GenerateBudgetPage() {
     fetchAndSummarizeChunks();
   }, []);
 
-  // === STEP 2: Handle xlsm upload + request plan ===
+  // === STEP 2: Handle xlsm upload + get filled Excel ===
   async function handleFileUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!xlsmFile || !draftNotes) return alert('Missing file or draft notes');
@@ -55,27 +55,30 @@ export default function GenerateBudgetPage() {
     formData.append('draftNotes', draftNotes);
 
     try {
-      setPlanLoading(true);
-      const res = await fetch('/api/budget-plan', {
+      setUploading(true);
+      setDownloadUrl(null);
+
+      const res = await fetch('/api/generate-filled-budget', {
         method: 'POST',
         body: formData,
       });
 
       if (!res.ok) {
         const fallback = await res.text();
-        throw new Error(fallback || 'Failed to generate budget plan');
+        throw new Error(fallback || 'Failed to generate filled Excel');
       }
 
-      const data = await res.json();
-      setWritePlan(data.writePlan);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      setDownloadUrl(url);
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
       } else {
-        setError('Error generating plan');
+        setError('Error generating filled Excel');
       }
     } finally {
-      setPlanLoading(false);
+      setUploading(false);
     }
   }
 
@@ -92,7 +95,8 @@ export default function GenerateBudgetPage() {
             />
           </div>
           <p className="text-gray-600">
-            Summarizing proposal chunks... {Math.round(progress * 100)}% ({Math.round(progress * totalChunks)} of {totalChunks})
+            Summarizing proposal chunks... {Math.round(progress * 100)}% (
+            {Math.round(progress * totalChunks)} of {totalChunks})
           </p>
         </>
       ) : error ? (
@@ -103,7 +107,7 @@ export default function GenerateBudgetPage() {
         </div>
       )}
 
-      {/* === STEP 2: Upload XLSM and get write plan === */}
+      {/* === STEP 2: Upload XLSM and get filled budget === */}
       <h2 className="text-2xl font-semibold mb-4 text-indigo-700">Step 2: Upload Budget Template</h2>
       <form onSubmit={handleFileUpload} className="mb-6">
         <input
@@ -116,16 +120,22 @@ export default function GenerateBudgetPage() {
         <button
           type="submit"
           className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
-          disabled={!xlsmFile || planLoading}
+          disabled={!xlsmFile || uploading}
         >
-          {planLoading ? 'Analyzing Budget Sheet...' : 'Generate Write Plan'}
+          {uploading ? 'Filling Excel Template...' : 'Generate Budget Sheet'}
         </button>
       </form>
 
-      {writePlan && (
-        <div className="bg-blue-50 p-6 rounded border whitespace-pre-wrap shadow">
-          <h3 className="text-xl font-semibold text-blue-700 mb-2">Write Plan from GPT:</h3>
-          {writePlan}
+      {downloadUrl && (
+        <div className="bg-green-50 p-4 rounded shadow border border-green-300">
+          <p className="text-green-700 font-medium mb-2">Your filled budget sheet is ready:</p>
+          <a
+            href={downloadUrl}
+            download="filled_budget.xlsm"
+            className="text-blue-700 underline hover:text-blue-900"
+          >
+            Download Excel File
+          </a>
         </div>
       )}
     </div>

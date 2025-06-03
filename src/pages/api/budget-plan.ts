@@ -1,86 +1,86 @@
-// /src/pages/api/budget-plan.ts
-import type { NextApiRequest, NextApiResponse } from 'next';
-import formidable, { Fields, Files } from 'formidable';
-import { promises as fs } from 'fs';
-import OpenAI from 'openai';
+// // /src/pages/api/budget-plan.ts
+// import type { NextApiRequest, NextApiResponse } from 'next';
+// import formidable, { Fields, Files } from 'formidable';
+// import { promises as fs } from 'fs';
+// import OpenAI from 'openai';
 
-// Must disable default body parser for formidable
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+// // Must disable default body parser for formidable
+// export const config = {
+//   api: {
+//     bodyParser: false,
+//   },
+// };
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+// const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-// Helper to parse form with formidable
-function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files }> {
-  const form = formidable({ keepExtensions: true });
-  return new Promise((resolve, reject) => {
-    form.parse(req, (err, fields, files) => {
-      if (err) return reject(err);
-      resolve({ fields, files });
-    });
-  });
-}
+// // Helper to parse form with formidable
+// function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files }> {
+//   const form = formidable({ keepExtensions: true });
+//   return new Promise((resolve, reject) => {
+//     form.parse(req, (err, fields, files) => {
+//       if (err) return reject(err);
+//       resolve({ fields, files });
+//     });
+//   });
+// }
 
-// Clean up markdown asterisks and bullet symbols
-function formatWritePlan(raw: string): string {
-  return raw
-    .replace(/\*\*(.*?)\*\*/g, '$1')        // Remove bold
-    .replace(/\*(.*?)\*/g, '$1')            // Remove italic
-    .replace(/^- /gm, '• ')                 // Convert markdown bullets to bullets
-    .replace(/\n{3,}/g, '\n\n')             // Collapse excessive newlines
-    .trim();
-}
+// // Clean up markdown asterisks and bullet symbols
+// function formatWritePlan(raw: string): string {
+//   return raw
+//     .replace(/\*\*(.*?)\*\*/g, '$1')        // Remove bold
+//     .replace(/\*(.*?)\*/g, '$1')            // Remove italic
+//     .replace(/^- /gm, '• ')                 // Convert markdown bullets to bullets
+//     .replace(/\n{3,}/g, '\n\n')             // Collapse excessive newlines
+//     .trim();
+// }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Only POST allowed' });
-  }
+// export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+//   if (req.method !== 'POST') {
+//     return res.status(405).json({ error: 'Only POST allowed' });
+//   }
 
-  try {
-    const { fields, files } = await parseForm(req);
+//   try {
+//     const { fields, files } = await parseForm(req);
 
-    const draftNotes = fields.draftNotes?.toString();
-    if (!draftNotes) {
-      return res.status(400).json({ error: 'Missing draftNotes field' });
-    }
+//     const draftNotes = fields.draftNotes?.toString();
+//     if (!draftNotes) {
+//       return res.status(400).json({ error: 'Missing draftNotes field' });
+//     }
 
-    const uploadedFile = files.file;
-    const file = Array.isArray(uploadedFile) ? uploadedFile[0] : uploadedFile;
+//     const uploadedFile = files.file;
+//     const file = Array.isArray(uploadedFile) ? uploadedFile[0] : uploadedFile;
 
-    if (!file || !file.filepath) {
-      return res.status(400).json({ error: 'Missing or invalid file upload' });
-    }
+//     if (!file || !file.filepath) {
+//       return res.status(400).json({ error: 'Missing or invalid file upload' });
+//     }
 
-    const fileBuffer = await fs.readFile(file.filepath);
-    void fileBuffer; // Placeholder for later use
+//     const fileBuffer = await fs.readFile(file.filepath);
+//     void fileBuffer; // Placeholder for later use
 
-    const prompt = `
-You are an expert research proposal assistant. You have the following budget draft notes extracted from a proposal:
+//     const prompt = `
+// You are an expert research proposal assistant. You have the following budget draft notes extracted from a proposal:
 
-${draftNotes}
+// ${draftNotes}
 
-You also have an uploaded PAMS-style Excel budget template file (xlsm) with multiple tabs, including an "Instructions" tab outlining what goes where.
+// You also have an uploaded PAMS-style Excel budget template file (xlsm) with multiple tabs, including an "Instructions" tab outlining what goes where.
 
-Using the instructions and the draft notes, create a detailed, step-by-step plan describing how to fill each tab of the budget sheet with relevant data from the draft notes.
+// Using the instructions and the draft notes, create a detailed, step-by-step plan describing how to fill each tab of the budget sheet with relevant data from the draft notes.
 
-The plan should be clear, concise, and organized by sheet/tab name. Include any assumptions or notes about how to handle empty or ambiguous data.
-`;
+// The plan should be clear, concise, and organized by sheet/tab name. Include any assumptions or notes about how to handle empty or ambiguous data.
+// `;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-1106-preview',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-    });
+//     const completion = await openai.chat.completions.create({
+//       model: 'gpt-4-1106-preview',
+//       messages: [{ role: 'user', content: prompt }],
+//       temperature: 0.3,
+//     });
 
-    const rawPlan = completion.choices[0]?.message?.content?.trim() ?? '(No plan generated)';
-    const writePlan = formatWritePlan(rawPlan);
+//     const rawPlan = completion.choices[0]?.message?.content?.trim() ?? '(No plan generated)';
+//     const writePlan = formatWritePlan(rawPlan);
 
-    return res.status(200).json({ writePlan });
-  } catch (error) {
-    console.error('Error in /api/budget-plan:', error);
-    return res.status(500).json({ error: 'Failed to generate budget write plan' });
-  }
-}
+//     return res.status(200).json({ writePlan });
+//   } catch (error) {
+//     console.error('Error in /api/budget-plan:', error);
+//     return res.status(500).json({ error: 'Failed to generate budget write plan' });
+//   }
+// }
