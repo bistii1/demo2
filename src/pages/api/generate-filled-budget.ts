@@ -3,8 +3,6 @@ import formidable, { Fields, Files } from 'formidable';
 import { promises as fs } from 'fs';
 import * as XLSX from 'xlsx';
 import OpenAI from 'openai';
-import path from 'path';
-import os from 'os';
 
 export const config = {
   api: {
@@ -33,12 +31,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { fields, files } = await parseForm(req);
 
     const draftNotes = fields.draftNotes?.toString();
-    const tabName = fields.tabName?.toString();
     if (!draftNotes) {
       return res.status(400).json({ error: 'Missing draftNotes field' });
-    }
-    if (!tabName) {
-      return res.status(400).json({ error: 'Missing tabName field' });
     }
 
     const uploadedFile = files.file;
@@ -56,16 +50,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!instructionsSheet) {
       return res.status(400).json({ error: 'Instructions tab not found in template.' });
     }
-
     const instructionsText = XLSX.utils.sheet_to_csv(instructionsSheet);
 
-    // Verify tabName exists in workbook
-    if (!workbook.SheetNames.includes(tabName)) {
-      return res.status(400).json({ error: `Tab "${tabName}" not found in workbook.` });
-    }
+    // Process all tabs except "Instructions"
+    const tabsToFill = workbook.SheetNames.filter((name) => name !== 'Instructions');
 
-    // Prepare prompt for just one tab
-    const prompt = `
+    for (const tabName of tabsToFill) {
+      const prompt = `
 You are filling out a research proposal Excel budget sheet.
 
 Instructions for how to fill the sheet:
@@ -84,36 +75,36 @@ Respond ONLY in JSON format like:
 If a field has no info in the draft, suggest something reasonable.
 `;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-1106-preview',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-    });
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4-1106-preview',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+      });
 
-    const responseText = completion.choices[0]?.message?.content ?? '{}';
-    let filledCells: Record<string, string> = {};
+      const responseText = completion.choices[0]?.message?.content ?? '{}';
+      let filledCells: Record<string, string> = {};
 
-    try {
-      filledCells = JSON.parse(responseText);
-    } catch {
-      console.warn(`Invalid JSON for sheet ${tabName}:`, responseText);
-      return res.status(500).json({ error: 'Invalid JSON response from AI' });
-    }
+      try {
+        filledCells = JSON.parse(responseText);
+      } catch {
+        console.warn(`Invalid JSON for sheet ${tabName}:`, responseText);
+        return res.status(500).json({ error: `Invalid JSON response from AI for tab ${tabName}` });
+      }
 
-    // Write filled cells into sheet
-    const sheet = workbook.Sheets[tabName];
-    for (const [cell, value] of Object.entries(filledCells)) {
-      sheet[cell] = { t: 's', v: value };
+      const sheet = workbook.Sheets[tabName];
+      for (const [cell, value] of Object.entries(filledCells)) {
+        sheet[cell] = { t: 's', v: value };
+      }
     }
 
     // Write updated workbook to buffer
     const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsm', type: 'buffer' });
 
-    // Return the updated workbook buffer encoded as base64 string (frontend can download or accumulate)
+    // Return the updated workbook buffer encoded as base64 string
     const base64Data = updatedBuffer.toString('base64');
 
-    return res.status(200).json({ 
-      message: `Tab ${tabName} processed`,
+    return res.status(200).json({
+      message: 'All tabs processed',
       base64Xlsm: base64Data,
     });
   } catch (error) {

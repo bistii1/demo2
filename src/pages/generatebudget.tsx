@@ -11,8 +11,6 @@ export default function GenerateBudgetPage() {
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
 
   const [processingTabs, setProcessingTabs] = useState(false);
-  const [currentTabIndex, setCurrentTabIndex] = useState(0);
-  const [tabNames, setTabNames] = useState<string[]>([]);
 
   // === STEP 1: Get draftNotes from proposal chunks ===
   useEffect(() => {
@@ -48,26 +46,6 @@ export default function GenerateBudgetPage() {
     fetchAndSummarizeChunks();
   }, []);
 
-  // Helper: extract sheet names except 'Instructions'
-  async function extractTabNames(file: File): Promise<string[]> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const data = reader.result;
-          if (!data) return reject('File read error');
-          const workbook = XLSX.read(data, { type: 'array' });
-          const names = workbook.SheetNames.filter((name: string) => name !== 'Instructions');
-          resolve(names);
-        } catch (e) {
-          reject(e);
-        }
-      };
-      reader.onerror = () => reject('File read error');
-      reader.readAsArrayBuffer(file);
-    });
-  }
-
   // === STEP 2: Handle xlsm upload + get filled Excel ===
   async function handleFileUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -79,16 +57,9 @@ export default function GenerateBudgetPage() {
     try {
       setError('');
       setProcessingTabs(true);
-      setCurrentTabIndex(0);
       setDownloadUrl(null);
 
-      // Get sheet/tab names for progress tracking
-      const names = await extractTabNames(xlsmFile);
-      setTabNames(names);
-
-      // We can only track progress if backend supports per-tab progress
-      // But for now, just send entire file and draftNotes and backend processes it
-
+      // Prepare formData with draftNotes and file (no tabName needed)
       const formData = new FormData();
       formData.append('file', xlsmFile);
       formData.append('draftNotes', draftNotes);
@@ -103,7 +74,21 @@ export default function GenerateBudgetPage() {
         throw new Error(fallback || 'Failed to generate filled Excel');
       }
 
-      const blob = await res.blob();
+      const json = await res.json();
+      const base64Xlsm = json.base64Xlsm;
+
+      // Create blob from base64 string
+      const byteCharacters = atob(base64Xlsm);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      // Note MIME type casing corrected here
+      const blob = new Blob([byteArray], {
+        type: 'application/vnd.ms-excel.sheet.macroEnabled.12',
+      });
+
       const url = window.URL.createObjectURL(blob);
       setDownloadUrl(url);
     } catch (err: unknown) {
@@ -111,8 +96,6 @@ export default function GenerateBudgetPage() {
       else setError('Error generating filled Excel');
     } finally {
       setProcessingTabs(false);
-      setCurrentTabIndex(0);
-      setTabNames([]);
     }
   }
 
@@ -128,9 +111,7 @@ export default function GenerateBudgetPage() {
               style={{ width: `${Math.round(progress * 100)}%` }}
             />
           </div>
-          <p className="text-gray-600">
-            Summarizing proposal chunks... {Math.round(progress * 100)}%
-          </p>
+          <p className="text-gray-600">Summarizing proposal chunks... {Math.round(progress * 100)}%</p>
         </>
       ) : error ? (
         <p className="text-red-600">{error}</p>
@@ -156,9 +137,7 @@ export default function GenerateBudgetPage() {
           className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
           disabled={!xlsmFile || processingTabs || loadingDraft}
         >
-          {processingTabs
-            ? `Filling Excel Template...`
-            : 'Generate Budget Sheet'}
+          {processingTabs ? `Filling Excel Template...` : 'Generate Budget Sheet'}
         </button>
       </form>
 
