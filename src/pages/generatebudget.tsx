@@ -107,6 +107,7 @@ export default function GenerateBudgetPage() {
       <h2 className="text-2xl font-semibold mb-4 text-indigo-700">Step 2: Upload Budget Template</h2>
       <form onSubmit={handleFileUpload} className="mb-6">
         <input
+          name="file"
           type="file"
           accept=".xlsm"
           onChange={(e) => setXlsmFile(e.target.files?.[0] || null)}
