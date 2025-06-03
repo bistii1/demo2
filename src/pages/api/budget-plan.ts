@@ -1,8 +1,10 @@
+// /src/pages/api/budget-plan.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { IncomingForm, File, Fields, Files } from 'formidable';
+import formidable, { File, Files, Fields } from 'formidable';
 import { promises as fs } from 'fs';
 import OpenAI from 'openai';
 
+// Must disable default body parser for formidable
 export const config = {
   api: {
     bodyParser: false,
@@ -11,33 +13,39 @@ export const config = {
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
+// Helper to parse form with formidable
+function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files }> {
+  const form = formidable({ keepExtensions: true });
+  return new Promise((resolve, reject) => {
+    form.parse(req, (err, fields, files) => {
+      if (err) return reject(err);
+      resolve({ fields, files });
+    });
+  });
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Only POST allowed' });
   }
 
   try {
-    const form = new IncomingForm();
-    const { fields, files }: { fields: Fields; files: Files } = await new Promise((resolve, reject) => {
-      form.parse(req, (err, fields, files) => {
-        if (err) reject(err);
-        else resolve({ fields, files });
-      });
-    });
+    const { fields, files } = await parseForm(req);
 
-    const draftNotes = fields.draftNotes as string | undefined;
+    const draftNotes = fields.draftNotes?.toString();
     if (!draftNotes) {
       return res.status(400).json({ error: 'Missing draftNotes field' });
     }
 
     const uploadedFile = files.file;
-    if (!uploadedFile || Array.isArray(uploadedFile)) {
+    const file = Array.isArray(uploadedFile) ? uploadedFile[0] : uploadedFile;
+
+    if (!file || !file.filepath) {
       return res.status(400).json({ error: 'Missing or invalid file upload' });
     }
 
-    const file = uploadedFile as File;
     const fileBuffer = await fs.readFile(file.filepath);
-    void fileBuffer; // Not used yet
+    void fileBuffer; // Placeholder for later use
 
     const prompt = `
 You are an expert research proposal assistant. You have the following budget draft notes extracted from a proposal:
@@ -58,7 +66,6 @@ The plan should be clear, concise, and organized by sheet/tab name. Include any 
     });
 
     const writePlan = completion.choices[0]?.message?.content?.trim() ?? '(No plan generated)';
-
     return res.status(200).json({ writePlan });
   } catch (error) {
     console.error('Error in /api/budget-plan:', error);
