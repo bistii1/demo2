@@ -68,8 +68,12 @@ export default function GenerateBudgetPage() {
 
       const data = await res.json();
       setWritePlan(data.writePlan);
-    } catch (err: any) {
-      setError(err.message || 'Error generating plan');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Error generating plan');
+      }
     } finally {
       setPlanLoading(false);
     }
