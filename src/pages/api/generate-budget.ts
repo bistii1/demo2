@@ -116,14 +116,12 @@ Example:
   ["Value1", "Value2"]
 ]
             `,
-            name: undefined,
           },
           {
             role: 'user',
             content: `Here is the text of a research proposal:\n\n${shortProposalText}\n\nThis is the "${sheetName}" tab of a PAMS-style budget template as raw array data:\n\n${JSON.stringify(
               json,
             )}\n\nPlease respond ONLY with a valid JSON array of arrays representing the filled tab contents.`,
-            name: undefined,
           },
         ],
         temperature: 0.2,
@@ -142,7 +140,8 @@ Example:
       }
 
       try {
-        const filledData = JSON.parse(rawJson);
+        // Assert type so TS knows it's a 2D array
+        const filledData = JSON.parse(rawJson) as any[][];
         const newSheet = XLSX.utils.aoa_to_sheet(filledData);
         workbook.Sheets[sheetName] = newSheet;
       } catch {
