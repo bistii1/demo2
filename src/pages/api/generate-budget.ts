@@ -1,12 +1,9 @@
-// pages/api/generate-budget.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import clientPromise from '@/lib/mongodb';
 import { getSession } from '@auth0/nextjs-auth0';
+import clientPromise from '@/lib/mongodb';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 function chunkText(text: string, maxChars: number): string[] {
   const chunks = [];
@@ -33,13 +30,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .limit(1)
       .toArray();
 
-    if (!latestUpload.length || !latestUpload[0].parsedText?.draft) {
+    const fullText = latestUpload[0]?.parsedText?.draft;
+    if (!fullText) {
       return res.status(404).json({ error: 'No parsed draft text found' });
     }
 
-    const fullText = latestUpload[0].parsedText.draft;
-    const chunks = chunkText(fullText, 3000); // ~1000 tokens per chunk
+    const chunks = chunkText(fullText, 3000); // ~1000 tokens
     const extractedSections: string[] = [];
+
+    res.writeHead(200, {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Transfer-Encoding': 'chunked',
+    });
 
     for (const [index, chunk] of chunks.entries()) {
       const prompt = `
@@ -61,21 +63,24 @@ ${chunk}
 --- END CHUNK ---
       `.trim();
 
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4-1106-preview', // GPT-4.1 aka o4-mini
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4-1106-preview',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.3,
       });
 
-      const chunkOutput = response.choices[0]?.message?.content?.trim();
+      const chunkOutput = completion.choices[0].message?.content?.trim();
       if (chunkOutput) {
         extractedSections.push(`### Chunk ${index + 1}\n${chunkOutput}`);
       }
+
+      const progressPercent = Math.round(((index + 1) / chunks.length) * 100);
+      res.write(`__PROGRESS__${progressPercent}\n`);
     }
 
     const draftNotes = extractedSections.join('\n\n');
-
-    res.status(200).json({ draftNotes });
+    res.write(JSON.stringify({ draftNotes }));
+    res.end();
   } catch (error) {
     console.error('Error generating draft notes:', error);
     res.status(500).json({ error: 'Failed to generate draft notes' });
