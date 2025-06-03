@@ -13,8 +13,12 @@ export default function GenerateBudgetPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Unknown error');
         setDraftNotes(data.draftNotes);
-      } catch (err: any) {
-        setError(err.message || 'Failed to load draft notes.');
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Failed to load draft notes.');
+        }
       } finally {
         setLoading(false);
       }
@@ -26,7 +30,7 @@ export default function GenerateBudgetPage() {
   return (
     <div className="min-h-screen bg-white text-gray-800 p-10">
       <h1 className="text-3xl font-bold mb-6 text-indigo-700">Step 1: Draft Notes</h1>
-      
+
       {loading && <p>Extracting draft notes from your proposal...</p>}
       {error && <p className="text-red-600 font-semibold">{error}</p>}
 
