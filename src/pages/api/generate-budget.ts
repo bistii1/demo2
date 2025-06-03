@@ -19,6 +19,7 @@ const openai = new OpenAI({
 type ParsedFile = FormidableFile;
 type CellValue = string | number | boolean | null;
 
+// Parse multipart form with formidable
 async function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files }> {
   return new Promise((resolve, reject) => {
     const form = new IncomingForm({ keepExtensions: true });
@@ -29,6 +30,7 @@ async function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: 
   });
 }
 
+// Get latest parsed draft text for the user from MongoDB
 async function getLatestParsedProposalText(userEmail: string): Promise<string | null> {
   const client = await clientPromise;
   const db = client.db('pdfUploader');
@@ -42,7 +44,7 @@ async function getLatestParsedProposalText(userEmail: string): Promise<string | 
   return latest[0]?.parsedText?.draft || null;
 }
 
-// Safe JSON parse with fallback
+// Safe JSON parse with fallback to null
 function safeJsonParse<T>(str: string): T | null {
   try {
     return JSON.parse(str) as T;
@@ -51,8 +53,8 @@ function safeJsonParse<T>(str: string): T | null {
   }
 }
 
-// Ask GPT to analyze Excel template structure
-async function analyzeTemplateWithGPT(tabsData: Record<string, CellValue[][]>): Promise<any> {
+// Step 1: Analyze Excel template structure using GPT
+async function analyzeTemplateWithGPT(tabsData: Record<string, CellValue[][]>): Promise<Record<string, string>> {
   const prompt = `
 You are an assistant that analyzes a budget Excel template.
 For each tab, summarize the key headers and what kind of data should be filled.
@@ -61,8 +63,7 @@ Respond ONLY with a JSON object mapping tab names to a description string.
 Example:
 {
   "Tab1": "Headers: A,B,C. Fill numeric budget values.",
-  "Tab2": "Personnel costs breakdown.",
-  ...
+  "Tab2": "Personnel costs breakdown."
 }
 Here is the template data (JSON arrays per tab):
 ${JSON.stringify(tabsData, null, 2)}
@@ -77,15 +78,15 @@ ${JSON.stringify(tabsData, null, 2)}
     temperature: 0.0,
   });
 
-  const content = response.choices[0]?.message?.content;
-  const parsed = safeJsonParse<Record<string, string>>(content || '');
+  const content = response.choices[0]?.message?.content || '';
+  const parsed = safeJsonParse<Record<string, string>>(content);
   if (!parsed) {
     throw new Error('Failed to parse GPT template analysis response');
   }
   return parsed;
 }
 
-// Ask GPT to extract budget data from draft given the template summary
+// Step 2: Extract budget data from draft text with GPT based on template summary
 async function extractBudgetFromDraftWithGPT(
   draftText: string,
   templateSummary: Record<string, string>,
@@ -103,8 +104,7 @@ Return ONLY a JSON object mapping each tab name to a filled 2D array of data mat
 Example:
 {
   "Tab1": [["Header1", "Header2"], ["1000", "2000"]],
-  "Tab2": [["Personnel", "Amount"], ["John Doe", "50000"]],
-  ...
+  "Tab2": [["Personnel", "Amount"], ["John Doe", "50000"]]
 }
 If you cannot fill a tab, return an empty array [].
 `;
@@ -119,14 +119,15 @@ If you cannot fill a tab, return an empty array [].
     max_tokens: 1500,
   });
 
-  const content = response.choices[0]?.message?.content;
-  const parsed = safeJsonParse<Record<string, CellValue[][]>>(content || '');
+  const content = response.choices[0]?.message?.content || '';
+  const parsed = safeJsonParse<Record<string, CellValue[][]>>(content);
   if (!parsed) {
     throw new Error('Failed to parse GPT budget extraction response');
   }
   return parsed;
 }
 
+// API handler
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' });
@@ -155,7 +156,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ message: 'No parsed draft proposal found.' });
     }
 
-    // Read template workbook and convert all sheets to JSON arrays
+    // Read Excel workbook and convert all sheets (except skipped) to JSON arrays
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetNames = workbook.SheetNames;
 
@@ -163,26 +164,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const tabsData: Record<string, CellValue[][]> = {};
 
     for (const sheetName of sheetNames) {
-      if (skipTabs.includes(sheetName)) {
-        continue;
-      }
+      if (skipTabs.includes(sheetName)) continue;
       const sheet = workbook.Sheets[sheetName];
       const json = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as CellValue[][];
       tabsData[sheetName] = json;
     }
 
-    // Step 1: Analyze template with GPT
+    // Step 1: Analyze template structure with GPT
     const templateSummary = await analyzeTemplateWithGPT(tabsData);
 
-    // Step 2: Extract budget data from proposal draft using GPT
+    // Step 2: Extract budget data from draft text using GPT
     const budgetData = await extractBudgetFromDraftWithGPT(proposalText, templateSummary);
 
-    // Step 3: Write extracted data back into workbook
+    // Step 3: Write extracted budget data back into workbook sheets
     for (const [tabName, tabData] of Object.entries(budgetData)) {
-      if (!sheetNames.includes(tabName) || skipTabs.includes(tabName)) {
-        continue;
-      }
-
+      if (!sheetNames.includes(tabName) || skipTabs.includes(tabName)) continue;
       try {
         const newSheet = XLSX.utils.aoa_to_sheet(tabData);
         workbook.Sheets[tabName] = newSheet;
@@ -191,11 +187,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
+    // Generate updated Excel buffer as xlsm
     const updatedBuffer = XLSX.write(workbook, {
       type: 'buffer',
       bookType: 'xlsm',
     });
 
+    // Send filled template as download
     res.setHeader('Content-Disposition', 'attachment; filename=filled-budget.xlsm');
     res.setHeader('Content-Type', 'application/vnd.ms-excel.sheet.macroEnabled.12');
     res.send(updatedBuffer);
