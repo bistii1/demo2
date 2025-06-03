@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import * as XLSX from 'xlsx';
 
 export default function GenerateBudgetPage() {
   const [draftNotes, setDraftNotes] = useState('');
