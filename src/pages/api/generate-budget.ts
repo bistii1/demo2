@@ -1,3 +1,4 @@
+// pages/api/generate-budget.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSession } from '@auth0/nextjs-auth0';
 import clientPromise from '@/lib/mongodb';
@@ -35,13 +36,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: 'No parsed draft text found' });
     }
 
-    const chunks = chunkText(fullText, 3000); // ~1000 tokens
+    const chunks = chunkText(fullText, 2000); // smaller for faster processing
     const extractedSections: string[] = [];
-
-    res.writeHead(200, {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'Transfer-Encoding': 'chunked',
-    });
 
     for (const [index, chunk] of chunks.entries()) {
       const prompt = `
@@ -59,9 +55,7 @@ Return the output in Markdown bullets grouped by category. If nothing budget-rel
 --- CHUNK #${index + 1} ---
 
 ${chunk}
-
---- END CHUNK ---
-      `.trim();
+`.trim();
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-4-1106-preview',
@@ -69,18 +63,14 @@ ${chunk}
         temperature: 0.3,
       });
 
-      const chunkOutput = completion.choices[0].message?.content?.trim();
-      if (chunkOutput) {
-        extractedSections.push(`### Chunk ${index + 1}\n${chunkOutput}`);
+      const content = completion.choices[0]?.message?.content?.trim();
+      if (content) {
+        extractedSections.push(`### Chunk ${index + 1}\n${content}`);
       }
-
-      const progressPercent = Math.round(((index + 1) / chunks.length) * 100);
-      res.write(`__PROGRESS__${progressPercent}\n`);
     }
 
     const draftNotes = extractedSections.join('\n\n');
-    res.write(JSON.stringify({ draftNotes }));
-    res.end();
+    res.status(200).json({ draftNotes });
   } catch (error) {
     console.error('Error generating draft notes:', error);
     res.status(500).json({ error: 'Failed to generate draft notes' });
