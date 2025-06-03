@@ -7,44 +7,36 @@ export default function GenerateBudgetPage() {
   const [loading, setLoading] = useState(true);
   const [totalChunks, setTotalChunks] = useState(0);
 
+  const [xlsmFile, setXlsmFile] = useState<File | null>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+  const [writePlan, setWritePlan] = useState('');
+
+  // === STEP 1: Get draftNotes from proposal chunks ===
   useEffect(() => {
     async function fetchAndSummarizeChunks() {
       try {
-        // Step 1: Get chunk count
         const countRes = await fetch('/api/generate-budget?chunkIndex=count');
         const countData = await countRes.json();
         const total = countData.chunkCount;
-
         setTotalChunks(total);
 
         const summaries: string[] = [];
 
-        // Step 2: Process each chunk
         for (let i = 0; i < total; i++) {
           const res = await fetch(`/api/generate-budget?chunkIndex=${i}`);
-          if (!res.ok) {
-            const fallback = await res.text();
-            throw new Error(fallback || `Failed to process chunk ${i}`);
-          }
+          if (!res.ok) throw new Error(await res.text());
           const data = await res.json();
           summaries.push(data.summary);
-          setProgress((i + 1) / total); // update progress bar
+          setProgress((i + 1) / total);
         }
 
-        // Step 3: Combine final summary
         const finalRes = await fetch(`/api/generate-budget?chunkIndex=all`);
-        if (!finalRes.ok) {
-          const fallback = await finalRes.text();
-          throw new Error(fallback || 'Failed to combine summaries');
-        }
+        if (!finalRes.ok) throw new Error(await finalRes.text());
         const finalData = await finalRes.json();
         setDraftNotes(finalData.draftNotes);
       } catch (err: unknown) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError('Unknown error occurred.');
-        }
+        if (err instanceof Error) setError(err.message);
+        else setError('Unknown error occurred.');
       } finally {
         setLoading(false);
       }
@@ -53,11 +45,41 @@ export default function GenerateBudgetPage() {
     fetchAndSummarizeChunks();
   }, []);
 
+  // === STEP 2: Handle xlsm upload + request plan ===
+  async function handleFileUpload(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!xlsmFile || !draftNotes) return alert('Missing file or draft notes');
+
+    const formData = new FormData();
+    formData.append('file', xlsmFile);
+    formData.append('draftNotes', draftNotes);
+
+    try {
+      setPlanLoading(true);
+      const res = await fetch('/api/budget-plan', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const fallback = await res.text();
+        throw new Error(fallback || 'Failed to generate budget plan');
+      }
+
+      const data = await res.json();
+      setWritePlan(data.writePlan);
+    } catch (err: any) {
+      setError(err.message || 'Error generating plan');
+    } finally {
+      setPlanLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-white text-gray-800 p-10">
       <h1 className="text-3xl font-bold mb-6 text-indigo-700">Step 1: Draft Notes</h1>
 
-      {loading && (
+      {loading ? (
         <>
           <div className="w-full bg-gray-200 h-4 rounded-full overflow-hidden mb-4">
             <div
@@ -69,13 +91,36 @@ export default function GenerateBudgetPage() {
             Summarizing proposal chunks... {Math.round(progress * 100)}% ({Math.round(progress * totalChunks)} of {totalChunks})
           </p>
         </>
+      ) : error ? (
+        <p className="text-red-600">{error}</p>
+      ) : (
+        <div className="bg-gray-100 p-6 rounded border whitespace-pre-wrap shadow mb-8">
+          {draftNotes}
+        </div>
       )}
 
-      {error && <p className="text-red-600">{error}</p>}
+      {/* === STEP 2: Upload XLSM and get write plan === */}
+      <h2 className="text-2xl font-semibold mb-4 text-indigo-700">Step 2: Upload Budget Template</h2>
+      <form onSubmit={handleFileUpload} className="mb-6">
+        <input
+          type="file"
+          accept=".xlsm"
+          onChange={(e) => setXlsmFile(e.target.files?.[0] || null)}
+          className="mb-4 block"
+        />
+        <button
+          type="submit"
+          className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
+          disabled={!xlsmFile || planLoading}
+        >
+          {planLoading ? 'Analyzing Budget Sheet...' : 'Generate Write Plan'}
+        </button>
+      </form>
 
-      {!loading && !error && (
-        <div className="bg-gray-100 p-6 rounded border whitespace-pre-wrap shadow">
-          {draftNotes}
+      {writePlan && (
+        <div className="bg-blue-50 p-6 rounded border whitespace-pre-wrap shadow">
+          <h3 className="text-xl font-semibold text-blue-700 mb-2">Write Plan from GPT:</h3>
+          {writePlan}
         </div>
       )}
     </div>
