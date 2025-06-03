@@ -2,53 +2,55 @@ import { useEffect, useState } from 'react';
 
 export default function GenerateBudgetPage() {
   const [draftNotes, setDraftNotes] = useState('');
-  const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const [totalChunks, setTotalChunks] = useState(0);
 
   useEffect(() => {
-    async function fetchChunks() {
+    async function fetchAndSummarizeChunks() {
       try {
-        // First, get total chunk count from backend
-        // We'll add a new API mode: chunkIndex=count to get number of chunks
+        // Step 1: Get chunk count
         const countRes = await fetch('/api/generate-budget?chunkIndex=count');
-        if (!countRes.ok) throw new Error('Failed to get chunk count');
-        const { chunkCount } = await countRes.json();
-        setTotalChunks(chunkCount);
+        const countData = await countRes.json();
+        const total = countData.chunkCount;
 
-        const chunkSummaries: string[] = [];
+        setTotalChunks(total);
 
-        for (let i = 0; i < chunkCount; i++) {
+        const summaries: string[] = [];
+
+        // Step 2: Process each chunk
+        for (let i = 0; i < total; i++) {
           const res = await fetch(`/api/generate-budget?chunkIndex=${i}`);
           if (!res.ok) {
-            const text = await res.text();
-            throw new Error(text || `Failed to get chunk ${i}`);
+            const fallback = await res.text();
+            throw new Error(fallback || `Failed to process chunk ${i}`);
           }
           const data = await res.json();
-          chunkSummaries.push(data.summary);
-
-          setProgress((i + 1) / chunkCount);
+          summaries.push(data.summary);
+          setProgress((i + 1) / total); // update progress bar
         }
 
-        // Now fetch combined summary
-        const combinedRes = await fetch('/api/generate-budget?chunkIndex=all');
-        if (!combinedRes.ok) {
-          const text = await combinedRes.text();
-          throw new Error(text || 'Failed to get combined summary');
+        // Step 3: Combine final summary
+        const finalRes = await fetch(`/api/generate-budget?chunkIndex=all`);
+        if (!finalRes.ok) {
+          const fallback = await finalRes.text();
+          throw new Error(fallback || 'Failed to combine summaries');
         }
-        const combinedData = await combinedRes.json();
-
-        setDraftNotes(combinedData.draftNotes);
+        const finalData = await finalRes.json();
+        setDraftNotes(finalData.draftNotes);
       } catch (err: unknown) {
-        if (err instanceof Error) setError(err.message);
-        else setError('Unknown error occurred.');
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Unknown error occurred.');
+        }
       } finally {
         setLoading(false);
       }
     }
 
-    fetchChunks();
+    fetchAndSummarizeChunks();
   }, []);
 
   return (
@@ -63,7 +65,9 @@ export default function GenerateBudgetPage() {
               style={{ width: `${Math.round(progress * 100)}%` }}
             />
           </div>
-          <p className="text-gray-600">Analyzing your draft... {Math.round(progress * 100)}%</p>
+          <p className="text-gray-600">
+            Summarizing proposal chunks... {Math.round(progress * 100)}% ({Math.round(progress * totalChunks)} of {totalChunks})
+          </p>
         </>
       )}
 
