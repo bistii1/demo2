@@ -1,11 +1,7 @@
-import { useEffect, useState, FormEvent, ChangeEvent } from 'react';
+import { useState, FormEvent, ChangeEvent } from 'react'; // removed useEffect
 import * as XLSX from 'xlsx';
 
 export default function GenerateBudgetPage() {
-  const [draftNotes, setDraftNotes] = useState<string>('');
-  const [progress, setProgress] = useState<number>(0);
-  const [error, setError] = useState<string>('');
-  const [loadingDraft, setLoadingDraft] = useState<boolean>(true);
   const [xlsmFile, setXlsmFile] = useState<File | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [processingTabs, setProcessingTabs] = useState<boolean>(false);
@@ -13,8 +9,8 @@ export default function GenerateBudgetPage() {
   // New state for sheet names and selected tab
   const [sheetNames, setSheetNames] = useState<string[]>([]);
   const [selectedTab, setSelectedTab] = useState<string>('');
+  const [draftNotes, setDraftNotes] = useState<string>(''); // ✅ if you're using this later, otherwise remove
 
-  // When user selects a file, parse it to get sheet names
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] || null;
     setXlsmFile(file);
@@ -50,7 +46,6 @@ export default function GenerateBudgetPage() {
     }
 
     try {
-      setError('');
       setProcessingTabs(true);
       setDownloadUrl(null);
 
@@ -86,8 +81,8 @@ export default function GenerateBudgetPage() {
       const url = window.URL.createObjectURL(blob);
       setDownloadUrl(url);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error generating filled Excel';
-      setError(message);
+      console.error(err);
+      alert('Error generating filled Excel');
     } finally {
       setProcessingTabs(false);
     }
@@ -95,10 +90,6 @@ export default function GenerateBudgetPage() {
 
   return (
     <div className="min-h-screen bg-white text-gray-800 p-10">
-      {/* ... draftNotes loading UI (unchanged) ... */}
-
-      {/* ... Your existing draftNotes display and loading logic ... */}
-
       <h2 className="text-2xl font-semibold mb-4 text-indigo-700">Step 2: Upload Budget Template</h2>
       <form onSubmit={handleFileUpload} className="mb-6">
         <input
@@ -107,7 +98,7 @@ export default function GenerateBudgetPage() {
           accept=".xlsm"
           onChange={handleFileChange}
           className="mb-4 block"
-          disabled={processingTabs || loadingDraft}
+          disabled={processingTabs}
         />
 
         {sheetNames.length > 0 && (
@@ -117,7 +108,7 @@ export default function GenerateBudgetPage() {
               value={selectedTab}
               onChange={(e) => setSelectedTab(e.target.value)}
               className="border rounded px-3 py-2 w-full"
-              disabled={processingTabs || loadingDraft}
+              disabled={processingTabs}
             >
               {sheetNames.map((name) => (
                 <option key={name} value={name}>
@@ -131,7 +122,7 @@ export default function GenerateBudgetPage() {
         <button
           type="submit"
           className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
-          disabled={!xlsmFile || !selectedTab || processingTabs || loadingDraft}
+          disabled={!xlsmFile || !selectedTab || processingTabs}
         >
           {processingTabs ? `Filling Excel Template...` : 'Generate Budget Sheet'}
         </button>
