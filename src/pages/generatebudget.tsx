@@ -52,9 +52,6 @@ export default function GenerateBudgetPage() {
   }, []);
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault(); // Prevent form submission
-    e.stopPropagation(); // Prevent bubbling
-
     const uploaded = e.target.files?.[0];
     setDownloadLink(null);
     setSelectedTab('');
@@ -66,19 +63,24 @@ export default function GenerateBudgetPage() {
     const formData = new FormData();
     formData.append('file', uploaded);
 
-    const res = await fetch('/api/extract-tab-names', {
-      method: 'POST',
-      body: formData,
-    });
+    try {
+      const res = await fetch('/api/extract-tab-names', {
+        method: 'POST',
+        body: formData,
+      });
 
-    if (res.ok) {
+      if (!res.ok) {
+        throw new Error('Failed to extract tabs from Excel file');
+      }
+
       const { tabs } = await res.json();
       setTabNames(tabs);
       setFile(uploaded);
-    } else {
-      setError('Failed to extract tabs from Excel file');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error while reading file');
     }
   };
+
 
 
   const handleSubmit = async (e: FormEvent) => {
@@ -150,7 +152,13 @@ export default function GenerateBudgetPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block mb-2 font-medium">Upload PAMS Excel Template (.xlsm)</label>
-            <input type="file" accept=".xlsm" onChange={handleFileChange} />
+            <input
+              type="file"
+              accept=".xlsm"
+              onClick={(e) => e.stopPropagation()}
+              onChange={handleFileChange}
+            />
+
           </div>
 
           {tabNames.length > 0 && (
