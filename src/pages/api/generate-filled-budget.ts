@@ -107,7 +107,12 @@ If a field has no info in the draft, suggest something reasonable.
       return res.status(400).json({ error: `Sheet "${tabName}" not found in workbook.` });
     }
 
+    const cellAddressRegex = /^[A-Z]+\d+$/;
     for (const [cell, value] of Object.entries(filledCells)) {
+      if (!cellAddressRegex.test(cell)) {
+        console.warn(`Invalid cell address skipped: ${cell}`);
+        continue;
+      }
       sheet[cell] = { t: 's', v: value };
     }
 
