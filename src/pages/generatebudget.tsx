@@ -1,144 +1,81 @@
-// pages/generatebudget.tsx
-import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
-import * as XLSX from 'xlsx';
+import { useEffect, useState } from 'react';
 
 export default function GenerateBudgetPage() {
-  const [xlsmFile, setXlsmFile] = useState<File | null>(null);
-  const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
-  const [processingTabs, setProcessingTabs] = useState<boolean>(false);
-  const [sheetNames, setSheetNames] = useState<string[]>([]);
-  const [selectedTab, setSelectedTab] = useState<string>('');
-  const [draftNotes, setDraftNotes] = useState<string>('');
-  const [loadingNotes, setLoadingNotes] = useState<boolean>(true);
+  const [draftNotes, setDraftNotes] = useState('');
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [totalChunks, setTotalChunks] = useState(0);
 
   useEffect(() => {
-    // Auto-fetch AI-generated budget notes from backend
-    async function fetchDraftNotes() {
+    async function fetchAndSummarizeChunks() {
       try {
-        const res = await fetch('/api/generate-budget?chunkIndex=all');
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.error || 'Failed to fetch draft notes');
-        setDraftNotes(json.draftNotes);
-      } catch (err) {
-        console.error(err);
-        alert('Could not fetch draft notes');
+        // Step 1: Get chunk count
+        const countRes = await fetch('/api/generate-budget?chunkIndex=count');
+        const countData = await countRes.json();
+        const total = countData.chunkCount;
+
+        setTotalChunks(total);
+
+        const summaries: string[] = [];
+
+        // Step 2: Process each chunk
+        for (let i = 0; i < total; i++) {
+          const res = await fetch(`/api/generate-budget?chunkIndex=${i}`);
+          if (!res.ok) {
+            const fallback = await res.text();
+            throw new Error(fallback || `Failed to process chunk ${i}`);
+          }
+          const data = await res.json();
+          summaries.push(data.summary);
+          setProgress((i + 1) / total); // update progress bar
+        }
+
+        // Step 3: Combine final summary
+        const finalRes = await fetch(`/api/generate-budget?chunkIndex=all`);
+        if (!finalRes.ok) {
+          const fallback = await finalRes.text();
+          throw new Error(fallback || 'Failed to combine summaries');
+        }
+        const finalData = await finalRes.json();
+        setDraftNotes(finalData.draftNotes);
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Unknown error occurred.');
+        }
       } finally {
-        setLoadingNotes(false);
+        setLoading(false);
       }
     }
 
-    fetchDraftNotes();
+    fetchAndSummarizeChunks();
   }, []);
 
-  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setXlsmFile(file);
-    setDownloadUrl(null); // clear any previous download link
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const data = new Uint8Array(evt.target?.result as ArrayBuffer);
-      const workbook = XLSX.read(data, { type: 'array' });
-      setSheetNames(workbook.SheetNames);
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!xlsmFile || !selectedTab) {
-      alert('Please upload a file and select a sheet');
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('xlsmFile', xlsmFile);
-    formData.append('draftNotes', draftNotes);
-    formData.append('selectedTab', selectedTab);
-
-    setProcessingTabs(true);
-    try {
-      const res = await fetch('/api/generate-filled-budget', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errJson = await res.json();
-        throw new Error(errJson.error || 'Failed to generate Excel file');
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      setDownloadUrl(url);
-    } catch (error) {
-      console.error('Error generating Excel file:', error);
-      alert('Failed to generate Excel file.');
-    } finally {
-      setProcessingTabs(false);
-    }
-  };
-
-  if (loadingNotes) {
-    return <div className="p-10 text-gray-600">Loading budget-relevant draft notes...</div>;
-  }
-
-  if (!draftNotes) {
-    return <div className="p-10 text-red-600">Could not load budget notes from your latest upload.</div>;
-  }
-
   return (
-    <div className="max-w-3xl mx-auto p-8">
-      <h1 className="text-2xl font-semibold mb-6">Generate PAMS Budget</h1>
+    <div className="min-h-screen bg-white text-gray-800 p-10">
+      <h1 className="text-3xl font-bold mb-6 text-indigo-700">Step 1: Draft Notes</h1>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <label className="block font-medium mb-2">Upload PAMS-style Excel Template (.xlsm)</label>
-          <input
-            type="file"
-            accept=".xlsm"
-            onChange={handleFileUpload}
-            className="block w-full border border-gray-300 rounded p-2"
-          />
-        </div>
-
-        {sheetNames.length > 0 && (
-          <div>
-            <label className="block font-medium mb-2">Select Sheet to Edit</label>
-            <select
-              value={selectedTab}
-              onChange={(e) => setSelectedTab(e.target.value)}
-              className="w-full border border-gray-300 rounded p-2"
-            >
-              <option value="">-- Select a sheet --</option>
-              {sheetNames.map((sheet) => (
-                <option key={sheet} value={sheet}>
-                  {sheet}
-                </option>
-              ))}
-            </select>
+      {loading && (
+        <>
+          <div className="w-full bg-gray-200 h-4 rounded-full overflow-hidden mb-4">
+            <div
+              className="bg-indigo-600 h-full transition-all duration-300"
+              style={{ width: `${Math.round(progress * 100)}%` }}
+            />
           </div>
-        )}
+          <p className="text-gray-600">
+            Summarizing proposal chunks... {Math.round(progress * 100)}% ({Math.round(progress * totalChunks)} of {totalChunks})
+          </p>
+        </>
+      )}
 
-        <button
-          type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded disabled:opacity-50"
-          disabled={processingTabs}
-        >
-          {processingTabs ? 'Processing...' : 'Generate Filled Excel'}
-        </button>
-      </form>
+      {error && <p className="text-red-600">{error}</p>}
 
-      {downloadUrl && (
-        <div className="mt-6">
-          <a
-            href={downloadUrl}
-            download="filled-budget.xlsm"
-            className="text-blue-600 underline"
-          >
-            Download Filled Excel File
-          </a>
+      {!loading && !error && (
+        <div className="bg-gray-100 p-6 rounded border whitespace-pre-wrap shadow">
+          {draftNotes}
         </div>
       )}
     </div>
