@@ -126,7 +126,7 @@ If a field has no info in the draft, suggest something reasonable.
             base64Xlsm: base64Data,
         });
     } catch (error) {
-        console.error(error);
+        console.error(error); // <-- This line ensures 'error' is used, fixing your build error
         return res.status(500).json({ error: 'Failed to generate filled budget' });
     }
 }
