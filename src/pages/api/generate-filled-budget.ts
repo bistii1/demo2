@@ -5,73 +5,73 @@ import * as XLSX from 'xlsx';
 import OpenAI from 'openai';
 
 export const config = {
-  api: {
-    bodyParser: false,
-  },
+    api: {
+        bodyParser: false,
+    },
 };
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files }> {
-  const form = formidable({ keepExtensions: true });
-  return new Promise((resolve, reject) => {
-    form.parse(req, (err, fields, files) => {
-      if (err) return reject(err);
-      resolve({ fields, files });
+    const form = formidable({ keepExtensions: true });
+    return new Promise((resolve, reject) => {
+        form.parse(req, (err, fields, files) => {
+            if (err) return reject(err);
+            resolve({ fields, files });
+        });
     });
-  });
 }
 
 // Helper to extract JSON from AI response, stripping markdown fences or extra text
 function extractJson(text: string): string | null {
-  // Match ```json ... ```
-  const jsonMatch = text.match(/```json([\s\S]*?)```/i) || text.match(/```([\s\S]*?)```/i);
-  if (jsonMatch) {
-    return jsonMatch[1].trim();
-  }
-  // Otherwise, match first {...} block
-  const braceMatch = text.match(/\{[\s\S]*\}/);
-  if (braceMatch) {
-    return braceMatch[0];
-  }
-  return null;
+    // Match ```json ... ```
+    const jsonMatch = text.match(/```json([\s\S]*?)```/i) || text.match(/```([\s\S]*?)```/i);
+    if (jsonMatch) {
+        return jsonMatch[1].trim();
+    }
+    // Otherwise, match first {...} block
+    const braceMatch = text.match(/\{[\s\S]*\}/);
+    if (braceMatch) {
+        return braceMatch[0];
+    }
+    return null;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Only POST allowed' });
-  }
-
-  try {
-    const { fields, files } = await parseForm(req);
-
-    const draftNotes = fields.draftNotes?.toString();
-    if (!draftNotes) {
-      return res.status(400).json({ error: 'Missing draftNotes field' });
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Only POST allowed' });
     }
 
-    const uploadedFile = files.file;
-    const file = Array.isArray(uploadedFile) ? uploadedFile[0] : uploadedFile;
-    if (!file || !file.filepath) {
-      return res.status(400).json({ error: 'Missing or invalid file upload' });
-    }
+    try {
+        const { fields, files } = await parseForm(req);
 
-    // Read workbook from uploaded file
-    const fileBuffer = await fs.readFile(file.filepath);
-    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+        const draftNotes = fields.draftNotes?.toString();
+        if (!draftNotes) {
+            return res.status(400).json({ error: 'Missing draftNotes field' });
+        }
 
-    // Check instructions tab exists
-    const instructionsSheet = workbook.Sheets['Instructions'];
-    if (!instructionsSheet) {
-      return res.status(400).json({ error: 'Instructions tab not found in template.' });
-    }
-    const instructionsText = XLSX.utils.sheet_to_csv(instructionsSheet);
+        const uploadedFile = files.file;
+        const file = Array.isArray(uploadedFile) ? uploadedFile[0] : uploadedFile;
+        if (!file || !file.filepath) {
+            return res.status(400).json({ error: 'Missing or invalid file upload' });
+        }
 
-    // Process all tabs except "Instructions"
-    const tabsToFill = workbook.SheetNames.filter((name) => name !== 'Instructions');
+        // Read workbook from uploaded file
+        const fileBuffer = await fs.readFile(file.filepath);
+        const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
 
-    for (const tabName of tabsToFill) {
-      const prompt = `
+        // Check instructions tab exists
+        const instructionsSheet = workbook.Sheets['Instructions'];
+        if (!instructionsSheet) {
+            return res.status(400).json({ error: 'Instructions tab not found in template.' });
+        }
+        const instructionsText = XLSX.utils.sheet_to_csv(instructionsSheet);
+
+        // Process all tabs except "Instructions"
+        const tabsToFill = workbook.SheetNames.filter((name) => name !== 'Instructions');
+
+        for (const tabName of tabsToFill) {
+            const prompt = `
 You are filling out a research proposal Excel budget sheet.
 
 Instructions for how to fill the sheet:
@@ -92,41 +92,41 @@ Format your response exactly like this example:
 If a field has no info in the draft, suggest something reasonable.
 `;
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4-1106-preview',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
-      });
+            const completion = await openai.chat.completions.create({
+                model: 'gpt-4-1106-preview',
+                messages: [{ role: 'user', content: prompt }],
+                temperature: 0.3,
+            });
 
-      const responseText = completion.choices[0]?.message?.content ?? '{}';
-      const rawJson = extractJson(responseText) ?? responseText;
+            const responseText = completion.choices[0]?.message?.content ?? '{}';
+            const rawJson = extractJson(responseText) ?? responseText;
 
-      let filledCells: Record<string, string> = {};
-      try {
-        filledCells = JSON.parse(rawJson);
-      } catch (error) {
-        console.warn(`Invalid JSON for sheet ${tabName}:`, responseText);
-        return res.status(500).json({ error: `Invalid JSON response from AI for tab ${tabName}` });
-      }
+            let filledCells: Record<string, string> = {};
+            try {
+                filledCells = JSON.parse(rawJson);
+            } catch (error) {
+                console.warn(`Invalid JSON for sheet ${tabName}:`, responseText);
+                return res.status(500).json({ error: `Invalid JSON response from AI for tab ${tabName}` });
+            }
 
-      const sheet = workbook.Sheets[tabName];
-      for (const [cell, value] of Object.entries(filledCells)) {
-        sheet[cell] = { t: 's', v: value };
-      }
+            const sheet = workbook.Sheets[tabName];
+            for (const [cell, value] of Object.entries(filledCells)) {
+                sheet[cell] = { t: 's', v: value };
+            }
+        }
+
+        // Write updated workbook to buffer
+        const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsm', type: 'buffer' });
+
+        // Return the updated workbook buffer encoded as base64 string
+        const base64Data = updatedBuffer.toString('base64');
+
+        return res.status(200).json({
+            message: 'All tabs processed',
+            base64Xlsm: base64Data,
+        });
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: 'Failed to generate filled budget' });
     }
-
-    // Write updated workbook to buffer
-    const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsm', type: 'buffer' });
-
-    // Return the updated workbook buffer encoded as base64 string
-    const base64Data = updatedBuffer.toString('base64');
-
-    return res.status(200).json({
-      message: 'All tabs processed',
-      base64Xlsm: base64Data,
-    });
-  } catch (error) {
-    console.error('Error in /api/generate-filled-budget:', error);
-    return res.status(500).json({ error: 'Failed to generate filled budget' });
-  }
 }
