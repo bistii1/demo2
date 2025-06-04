@@ -97,7 +97,7 @@ If a field has no info in the draft, suggest something reasonable.
     let filledCells: Record<string, string> = {};
     try {
       filledCells = JSON.parse(rawJson);
-    } catch (_err) {
+    } catch {
       console.warn(`Invalid JSON for sheet ${tabName}:`, responseText);
       return res.status(500).json({ error: `Invalid JSON response from AI for tab ${tabName}` });
     }
