@@ -52,6 +52,9 @@ export default function GenerateBudgetPage() {
   }, []);
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault(); // Prevent form submission
+    e.stopPropagation(); // Prevent bubbling
+
     const uploaded = e.target.files?.[0];
     setDownloadLink(null);
     setSelectedTab('');
@@ -76,6 +79,7 @@ export default function GenerateBudgetPage() {
       setError('Failed to extract tabs from Excel file');
     }
   };
+
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
