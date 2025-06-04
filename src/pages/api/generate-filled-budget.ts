@@ -24,12 +24,10 @@ function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files 
 
 // Helper to extract JSON from AI response, stripping markdown fences or extra text
 function extractJson(text: string): string | null {
-    // Match ```json ... ```
     const jsonMatch = text.match(/```json([\s\S]*?)```/i) || text.match(/```([\s\S]*?)```/i);
     if (jsonMatch) {
         return jsonMatch[1].trim();
     }
-    // Otherwise, match first {...} block
     const braceMatch = text.match(/\{[\s\S]*\}/);
     if (braceMatch) {
         return braceMatch[0];
@@ -56,18 +54,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             return res.status(400).json({ error: 'Missing or invalid file upload' });
         }
 
-        // Read workbook from uploaded file
         const fileBuffer = await fs.readFile(file.filepath);
         const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
 
-        // Check instructions tab exists
         const instructionsSheet = workbook.Sheets['Instructions'];
         if (!instructionsSheet) {
             return res.status(400).json({ error: 'Instructions tab not found in template.' });
         }
         const instructionsText = XLSX.utils.sheet_to_csv(instructionsSheet);
-
-        // Process all tabs except "Instructions"
         const tabsToFill = workbook.SheetNames.filter((name) => name !== 'Instructions');
 
         for (const tabName of tabsToFill) {
@@ -104,7 +98,7 @@ If a field has no info in the draft, suggest something reasonable.
             let filledCells: Record<string, string> = {};
             try {
                 filledCells = JSON.parse(rawJson);
-            } catch (error) {
+            } catch (_error) { // <--- fixed ESLint error: unused 'error'
                 console.warn(`Invalid JSON for sheet ${tabName}:`, responseText);
                 return res.status(500).json({ error: `Invalid JSON response from AI for tab ${tabName}` });
             }
@@ -115,10 +109,7 @@ If a field has no info in the draft, suggest something reasonable.
             }
         }
 
-        // Write updated workbook to buffer
         const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsm', type: 'buffer' });
-
-        // Return the updated workbook buffer encoded as base64 string
         const base64Data = updatedBuffer.toString('base64');
 
         return res.status(200).json({
@@ -126,7 +117,7 @@ If a field has no info in the draft, suggest something reasonable.
             base64Xlsm: base64Data,
         });
     } catch (error) {
-        console.error(error); // <-- This line ensures 'error' is used, fixing your build error
+        console.error(error);
         return res.status(500).json({ error: 'Failed to generate filled budget' });
     }
 }
