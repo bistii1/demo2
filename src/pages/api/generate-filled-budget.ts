@@ -99,7 +99,6 @@ If a field has no info in the draft, suggest something reasonable.
       });
 
       const responseText = completion.choices[0]?.message?.content ?? '{}';
-
       const rawJson = extractJson(responseText) ?? responseText;
 
       let filledCells: Record<string, string> = {};
