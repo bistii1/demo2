@@ -38,13 +38,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { fields, files } = await parseForm(req);
     const draftNotes = fields.draftNotes?.toString();
-    const tabName = fields.selectedTab?.toString(); // ✅ Fixed
+    const tabName = fields.tabName?.toString();
 
     if (!draftNotes || !tabName) {
-      return res.status(400).json({ error: 'Missing draftNotes or selectedTab in request' });
+      return res.status(400).json({ error: 'Missing draftNotes or tabName in request' });
     }
 
-    const uploadedFile = files.xlsmFile; // ✅ Fixed
+    const uploadedFile = files.file;
     const file = Array.isArray(uploadedFile) ? uploadedFile[0] : uploadedFile;
     if (!file || !file.filepath) {
       return res.status(400).json({ error: 'Missing or invalid file upload' });
@@ -115,6 +115,7 @@ If a field has no info in the draft, suggest something reasonable.
     const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsm', type: 'buffer' });
     const base64Data = updatedBuffer.toString('base64');
 
+    res.setHeader('Content-Type', 'application/json');
     return res.status(200).json({
       message: `Tab "${tabName}" processed successfully`,
       base64Xlsm: base64Data,
