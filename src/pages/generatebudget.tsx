@@ -1,32 +1,26 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, FormEvent, ChangeEvent } from 'react';
 
 export default function GenerateBudgetPage() {
-  const [draftNotes, setDraftNotes] = useState('');
-  const [progress, setProgress] = useState(0);
-  const [error, setError] = useState('');
-  const [loadingDraft, setLoadingDraft] = useState(true);
-
+  const [draftNotes, setDraftNotes] = useState<string>('');
+  const [progress, setProgress] = useState<number>(0);
+  const [error, setError] = useState<string>('');
+  const [loadingDraft, setLoadingDraft] = useState<boolean>(true);
   const [xlsmFile, setXlsmFile] = useState<File | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [processingTabs, setProcessingTabs] = useState<boolean>(false);
 
-  const [processingTabs, setProcessingTabs] = useState(false);
-
-  // === STEP 1: Get draftNotes from proposal chunks ===
   useEffect(() => {
     async function fetchAndSummarizeChunks() {
       try {
         const countRes = await fetch('/api/generate-budget?chunkIndex=count');
         const countData = await countRes.json();
-        const total = countData.chunkCount;
+        const total: number = countData.chunkCount;
         setProgress(0);
-
-        const summaries: string[] = [];
 
         for (let i = 0; i < total; i++) {
           const res = await fetch(`/api/generate-budget?chunkIndex=${i}`);
           if (!res.ok) throw new Error(await res.text());
-          const data = await res.json();
-          summaries.push(data.summary);
+          await res.json(); // Ignore interim summaries if not needed
           setProgress((i + 1) / total);
         }
 
@@ -35,8 +29,8 @@ export default function GenerateBudgetPage() {
         const finalData = await finalRes.json();
         setDraftNotes(finalData.draftNotes);
       } catch (err: unknown) {
-        if (err instanceof Error) setError(err.message);
-        else setError('Unknown error occurred.');
+        const message = err instanceof Error ? err.message : 'Unknown error occurred';
+        setError(message);
       } finally {
         setLoadingDraft(false);
       }
@@ -45,8 +39,7 @@ export default function GenerateBudgetPage() {
     fetchAndSummarizeChunks();
   }, []);
 
-  // === STEP 2: Handle xlsm upload + get filled Excel ===
-  async function handleFileUpload(e: React.FormEvent<HTMLFormElement>) {
+  async function handleFileUpload(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!xlsmFile || !draftNotes) {
       alert('Missing file or draft notes');
@@ -58,7 +51,6 @@ export default function GenerateBudgetPage() {
       setProcessingTabs(true);
       setDownloadUrl(null);
 
-      // Prepare formData with draftNotes and file (no tabName needed)
       const formData = new FormData();
       formData.append('file', xlsmFile);
       formData.append('draftNotes', draftNotes);
@@ -74,16 +66,15 @@ export default function GenerateBudgetPage() {
       }
 
       const json = await res.json();
-      const base64Xlsm = json.base64Xlsm;
+      const base64Xlsm: string = json.base64Xlsm;
 
-      // Create blob from base64 string
       const byteCharacters = atob(base64Xlsm);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
       }
       const byteArray = new Uint8Array(byteNumbers);
-      // Note MIME type casing corrected here
+
       const blob = new Blob([byteArray], {
         type: 'application/vnd.ms-excel.sheet.macroEnabled.12',
       });
@@ -91,8 +82,8 @@ export default function GenerateBudgetPage() {
       const url = window.URL.createObjectURL(blob);
       setDownloadUrl(url);
     } catch (err: unknown) {
-      if (err instanceof Error) setError(err.message);
-      else setError('Error generating filled Excel');
+      const message = err instanceof Error ? err.message : 'Error generating filled Excel';
+      setError(message);
     } finally {
       setProcessingTabs(false);
     }
@@ -120,14 +111,15 @@ export default function GenerateBudgetPage() {
         </div>
       )}
 
-      {/* === STEP 2: Upload XLSM and get filled budget === */}
       <h2 className="text-2xl font-semibold mb-4 text-indigo-700">Step 2: Upload Budget Template</h2>
       <form onSubmit={handleFileUpload} className="mb-6">
         <input
           name="file"
           type="file"
           accept=".xlsm"
-          onChange={(e) => setXlsmFile(e.target.files?.[0] || null)}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            setXlsmFile(e.target.files?.[0] || null)
+          }
           className="mb-4 block"
           disabled={processingTabs || loadingDraft}
         />

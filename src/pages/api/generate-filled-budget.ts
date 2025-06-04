@@ -43,8 +43,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { fields, files } = await parseForm(req);
 
     const draftNotes = fields.draftNotes?.toString();
-    if (!draftNotes) {
-      return res.status(400).json({ error: 'Missing draftNotes field' });
+    const tabName = fields.tabName?.toString();
+
+    if (!draftNotes || !tabName) {
+      return res.status(400).json({ error: 'Missing draftNotes or tabName field' });
     }
 
     const uploadedFile = files.file;
@@ -62,10 +64,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const instructionsText = XLSX.utils.sheet_to_csv(instructionsSheet);
-    const tabsToFill = workbook.SheetNames.filter((name) => name !== 'Instructions');
 
-    for (const tabName of tabsToFill) {
-      const prompt = `
+    const prompt = `
 You are filling out a research proposal Excel budget sheet.
 
 Instructions for how to fill the sheet:
@@ -86,38 +86,41 @@ Format your response exactly like this example:
 If a field has no info in the draft, suggest something reasonable.
 `;
 
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4-1106-preview',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
-      });
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4-1106-preview',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+    });
 
-      const responseText = completion.choices[0]?.message?.content ?? '{}';
-      const rawJson = extractJson(responseText) ?? responseText;
+    const responseText = completion.choices[0]?.message?.content ?? '{}';
+    const rawJson = extractJson(responseText) ?? responseText;
 
-      let filledCells: Record<string, string> = {};
-      try {
-        filledCells = JSON.parse(rawJson);
-      } catch {
-        console.warn(`Invalid JSON for sheet ${tabName}:`, responseText);
-        return res.status(500).json({ error: `Invalid JSON response from AI for tab ${tabName}` });
-      }
+    let filledCells: Record<string, string> = {};
+    try {
+      filledCells = JSON.parse(rawJson);
+    } catch (jsonErr) {
+      console.warn(`Invalid JSON for sheet ${tabName}:`, responseText);
+      return res.status(500).json({ error: `Invalid JSON response from AI for tab ${tabName}` });
+    }
 
-      const sheet = workbook.Sheets[tabName];
-      for (const [cell, value] of Object.entries(filledCells)) {
-        sheet[cell] = { t: 's', v: value };
-      }
+    const sheet = workbook.Sheets[tabName];
+    if (!sheet) {
+      return res.status(400).json({ error: `Sheet "${tabName}" not found in workbook.` });
+    }
+
+    for (const [cell, value] of Object.entries(filledCells)) {
+      sheet[cell] = { t: 's', v: value };
     }
 
     const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsm', type: 'buffer' });
     const base64Data = updatedBuffer.toString('base64');
 
     return res.status(200).json({
-      message: 'All tabs processed',
+      message: `Tab "${tabName}" processed`,
       base64Xlsm: base64Data,
     });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({ error: 'Failed to generate filled budget' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to process budget tab' });
   }
 }
