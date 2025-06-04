@@ -6,7 +6,7 @@ import OpenAI from 'openai';
 
 export const config = {
   api: {
-    bodyParser: false,
+    bodyParser: false, // required for formidable file upload parsing
   },
 };
 
@@ -22,21 +22,18 @@ function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files 
   });
 }
 
+// Extract JSON snippet from AI response text
 function extractJson(text: string): string | null {
   const jsonMatch = text.match(/```json([\s\S]*?)```/i) || text.match(/```([\s\S]*?)```/i);
-  if (jsonMatch) {
-    return jsonMatch[1].trim();
-  }
+  if (jsonMatch) return jsonMatch[1].trim();
   const braceMatch = text.match(/\{[\s\S]*\}/);
-  if (braceMatch) {
-    return braceMatch[0];
-  }
+  if (braceMatch) return braceMatch[0];
   return null;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Only POST allowed' });
+    return res.status(405).json({ error: 'Only POST method allowed' });
   }
 
   try {
@@ -45,7 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const tabName = fields.tabName?.toString();
 
     if (!draftNotes || !tabName) {
-      return res.status(400).json({ error: 'Missing draftNotes or tabName field' });
+      return res.status(400).json({ error: 'Missing draftNotes or tabName in request' });
     }
 
     const uploadedFile = files.file;
@@ -54,16 +51,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Missing or invalid file upload' });
     }
 
+    // Read the uploaded .xlsm file buffer
     const fileBuffer = await fs.readFile(file.filepath);
     const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
 
+    // Read instructions tab content
     const instructionsSheet = workbook.Sheets['Instructions'];
     if (!instructionsSheet) {
-      return res.status(400).json({ error: 'Instructions tab not found in template.' });
+      return res.status(400).json({ error: 'Instructions tab not found in Excel template' });
     }
 
     const instructionsText = XLSX.utils.sheet_to_csv(instructionsSheet);
 
+    // Build prompt for OpenAI
     const prompt = `
 You are filling out a research proposal Excel budget sheet.
 
@@ -85,6 +85,7 @@ Format your response exactly like this example:
 If a field has no info in the draft, suggest something reasonable.
 `;
 
+    // Call OpenAI to generate filled cell values
     const completion = await openai.chat.completions.create({
       model: 'gpt-4-1106-preview',
       messages: [{ role: 'user', content: prompt }],
@@ -98,29 +99,31 @@ If a field has no info in the draft, suggest something reasonable.
     try {
       filledCells = JSON.parse(rawJson);
     } catch {
-      console.warn(`Invalid JSON for sheet ${tabName}:`, responseText);
-      return res.status(500).json({ error: `Invalid JSON response from AI for tab ${tabName}` });
+      console.warn(`Invalid JSON response for tab "${tabName}":`, responseText);
+      return res.status(500).json({ error: `Invalid JSON response from AI for tab "${tabName}"` });
     }
 
     const sheet = workbook.Sheets[tabName];
     if (!sheet) {
-      return res.status(400).json({ error: `Sheet "${tabName}" not found in workbook.` });
+      return res.status(400).json({ error: `Sheet "${tabName}" not found in Excel workbook.` });
     }
 
+    // Update sheet cells with AI-generated values
     const cellAddressRegex = /^[A-Z]+\d+$/;
     for (const [cell, value] of Object.entries(filledCells)) {
       if (!cellAddressRegex.test(cell)) {
-        console.warn(`Invalid cell address skipped: ${cell}`);
+        console.warn(`Skipping invalid cell address: ${cell}`);
         continue;
       }
       sheet[cell] = { t: 's', v: value };
     }
 
+    // Write updated workbook to buffer
     const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsm', type: 'buffer' });
     const base64Data = updatedBuffer.toString('base64');
 
     return res.status(200).json({
-      message: `Tab "${tabName}" processed`,
+      message: `Tab "${tabName}" processed successfully`,
       base64Xlsm: base64Data,
     });
   } catch (err) {
