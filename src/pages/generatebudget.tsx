@@ -1,142 +1,143 @@
-import { useState, FormEvent, ChangeEvent } from 'react'; // removed useEffect
+// pages/generatebudget.tsx
+import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import * as XLSX from 'xlsx';
 
 export default function GenerateBudgetPage() {
   const [xlsmFile, setXlsmFile] = useState<File | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [processingTabs, setProcessingTabs] = useState<boolean>(false);
-
-  // New state for sheet names and selected tab
   const [sheetNames, setSheetNames] = useState<string[]>([]);
   const [selectedTab, setSelectedTab] = useState<string>('');
-  const [draftNotes, setDraftNotes] = useState<string>(''); // ✅ if you're using this later, otherwise remove
+  const [draftNotes, setDraftNotes] = useState<string>('');
+  const [loadingNotes, setLoadingNotes] = useState<boolean>(true);
 
-  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] || null;
-    setXlsmFile(file);
-    setDownloadUrl(null);
-
-    if (!file) {
-      setSheetNames([]);
-      setSelectedTab('');
-      return;
+  useEffect(() => {
+    // Auto-fetch AI-generated budget notes from backend
+    async function fetchDraftNotes() {
+      try {
+        const res = await fetch('/api/generate-budget?chunkIndex=all');
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || 'Failed to fetch draft notes');
+        setDraftNotes(json.draftNotes);
+      } catch (err) {
+        console.error(err);
+        alert('Could not fetch draft notes');
+      } finally {
+        setLoadingNotes(false);
+      }
     }
+
+    fetchDraftNotes();
+  }, []);
+
+  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setXlsmFile(file);
+    setDownloadUrl(null); // clear any previous download link
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const data = event.target?.result;
-      if (!data) return;
-
+    reader.onload = (evt) => {
+      const data = new Uint8Array(evt.target?.result as ArrayBuffer);
       const workbook = XLSX.read(data, { type: 'array' });
       setSheetNames(workbook.SheetNames);
-      setSelectedTab(workbook.SheetNames[0] || '');
     };
     reader.readAsArrayBuffer(file);
-  }
+  };
 
-  async function handleFileUpload(e: FormEvent<HTMLFormElement>) {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!xlsmFile || !draftNotes) {
-      alert('Missing file or draft notes');
-      return;
-    }
-    if (!selectedTab) {
-      alert('Please select a tab');
+    if (!xlsmFile || !selectedTab) {
+      alert('Please upload a file and select a sheet');
       return;
     }
 
+    const formData = new FormData();
+    formData.append('xlsmFile', xlsmFile);
+    formData.append('draftNotes', draftNotes);
+    formData.append('selectedTab', selectedTab);
+
+    setProcessingTabs(true);
     try {
-      setProcessingTabs(true);
-      setDownloadUrl(null);
-
-      const formData = new FormData();
-      formData.append('file', xlsmFile);
-      formData.append('draftNotes', draftNotes);
-      formData.append('tabName', selectedTab);
-
       const res = await fetch('/api/generate-filled-budget', {
         method: 'POST',
         body: formData,
       });
 
       if (!res.ok) {
-        const fallback = await res.text();
-        throw new Error(fallback || 'Failed to generate filled Excel');
+        const errJson = await res.json();
+        throw new Error(errJson.error || 'Failed to generate Excel file');
       }
 
-      const json = await res.json();
-      const base64Xlsm: string = json.base64Xlsm;
-
-      const byteCharacters = atob(base64Xlsm);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-
-      const blob = new Blob([byteArray], {
-        type: 'application/vnd.ms-excel.sheet.macroEnabled.12',
-      });
-
+      const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       setDownloadUrl(url);
-    } catch (err: unknown) {
-      console.error(err);
-      alert('Error generating filled Excel');
+    } catch (error) {
+      console.error('Error generating Excel file:', error);
+      alert('Failed to generate Excel file.');
     } finally {
       setProcessingTabs(false);
     }
+  };
+
+  if (loadingNotes) {
+    return <div className="p-10 text-gray-600">Loading budget-relevant draft notes...</div>;
+  }
+
+  if (!draftNotes) {
+    return <div className="p-10 text-red-600">Could not load budget notes from your latest upload.</div>;
   }
 
   return (
-    <div className="min-h-screen bg-white text-gray-800 p-10">
-      <h2 className="text-2xl font-semibold mb-4 text-indigo-700">Step 2: Upload Budget Template</h2>
-      <form onSubmit={handleFileUpload} className="mb-6">
-        <input
-          name="file"
-          type="file"
-          accept=".xlsm"
-          onChange={handleFileChange}
-          className="mb-4 block"
-          disabled={processingTabs}
-        />
+    <div className="max-w-3xl mx-auto p-8">
+      <h1 className="text-2xl font-semibold mb-6">Generate PAMS Budget</h1>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label className="block font-medium mb-2">Upload PAMS-style Excel Template (.xlsm)</label>
+          <input
+            type="file"
+            accept=".xlsm"
+            onChange={handleFileUpload}
+            className="block w-full border border-gray-300 rounded p-2"
+          />
+        </div>
 
         {sheetNames.length > 0 && (
-          <label className="block mb-4">
-            <span className="block mb-1 font-medium text-indigo-700">Select Sheet Tab to Fill:</span>
+          <div>
+            <label className="block font-medium mb-2">Select Sheet to Edit</label>
             <select
               value={selectedTab}
               onChange={(e) => setSelectedTab(e.target.value)}
-              className="border rounded px-3 py-2 w-full"
-              disabled={processingTabs}
+              className="w-full border border-gray-300 rounded p-2"
             >
-              {sheetNames.map((name) => (
-                <option key={name} value={name}>
-                  {name}
+              <option value="">-- Select a sheet --</option>
+              {sheetNames.map((sheet) => (
+                <option key={sheet} value={sheet}>
+                  {sheet}
                 </option>
               ))}
             </select>
-          </label>
+          </div>
         )}
 
         <button
           type="submit"
-          className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
-          disabled={!xlsmFile || !selectedTab || processingTabs}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded disabled:opacity-50"
+          disabled={processingTabs}
         >
-          {processingTabs ? `Filling Excel Template...` : 'Generate Budget Sheet'}
+          {processingTabs ? 'Processing...' : 'Generate Filled Excel'}
         </button>
       </form>
 
       {downloadUrl && (
-        <div className="bg-green-50 p-4 rounded shadow border border-green-300">
-          <p className="text-green-700 font-medium mb-2">Your filled budget sheet is ready:</p>
+        <div className="mt-6">
           <a
             href={downloadUrl}
-            download="filled_budget.xlsm"
-            className="text-blue-700 underline hover:text-blue-900"
+            download="filled-budget.xlsm"
+            className="text-blue-600 underline"
           >
-            Download Excel File
+            Download Filled Excel File
           </a>
         </div>
       )}

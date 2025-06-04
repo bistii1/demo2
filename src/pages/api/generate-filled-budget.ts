@@ -6,7 +6,7 @@ import OpenAI from 'openai';
 
 export const config = {
   api: {
-    bodyParser: false, // required for formidable file upload parsing
+    bodyParser: false,
   },
 };
 
@@ -22,7 +22,6 @@ function parseForm(req: NextApiRequest): Promise<{ fields: Fields; files: Files 
   });
 }
 
-// Extract JSON snippet from AI response text
 function extractJson(text: string): string | null {
   const jsonMatch = text.match(/```json([\s\S]*?)```/i) || text.match(/```([\s\S]*?)```/i);
   if (jsonMatch) return jsonMatch[1].trim();
@@ -39,23 +38,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { fields, files } = await parseForm(req);
     const draftNotes = fields.draftNotes?.toString();
-    const tabName = fields.tabName?.toString();
+    const tabName = fields.selectedTab?.toString(); // ✅ Fixed
 
     if (!draftNotes || !tabName) {
-      return res.status(400).json({ error: 'Missing draftNotes or tabName in request' });
+      return res.status(400).json({ error: 'Missing draftNotes or selectedTab in request' });
     }
 
-    const uploadedFile = files.file;
+    const uploadedFile = files.xlsmFile; // ✅ Fixed
     const file = Array.isArray(uploadedFile) ? uploadedFile[0] : uploadedFile;
     if (!file || !file.filepath) {
       return res.status(400).json({ error: 'Missing or invalid file upload' });
     }
 
-    // Read the uploaded .xlsm file buffer
     const fileBuffer = await fs.readFile(file.filepath);
     const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
 
-    // Read instructions tab content
     const instructionsSheet = workbook.Sheets['Instructions'];
     if (!instructionsSheet) {
       return res.status(400).json({ error: 'Instructions tab not found in Excel template' });
@@ -63,7 +60,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const instructionsText = XLSX.utils.sheet_to_csv(instructionsSheet);
 
-    // Build prompt for OpenAI
     const prompt = `
 You are filling out a research proposal Excel budget sheet.
 
@@ -85,7 +81,6 @@ Format your response exactly like this example:
 If a field has no info in the draft, suggest something reasonable.
 `;
 
-    // Call OpenAI to generate filled cell values
     const completion = await openai.chat.completions.create({
       model: 'gpt-4-1106-preview',
       messages: [{ role: 'user', content: prompt }],
@@ -108,7 +103,6 @@ If a field has no info in the draft, suggest something reasonable.
       return res.status(400).json({ error: `Sheet "${tabName}" not found in Excel workbook.` });
     }
 
-    // Update sheet cells with AI-generated values
     const cellAddressRegex = /^[A-Z]+\d+$/;
     for (const [cell, value] of Object.entries(filledCells)) {
       if (!cellAddressRegex.test(cell)) {
@@ -118,7 +112,6 @@ If a field has no info in the draft, suggest something reasonable.
       sheet[cell] = { t: 's', v: value };
     }
 
-    // Write updated workbook to buffer
     const updatedBuffer = XLSX.write(workbook, { bookType: 'xlsm', type: 'buffer' });
     const base64Data = updatedBuffer.toString('base64');
 
