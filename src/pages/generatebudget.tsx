@@ -13,6 +13,8 @@ export default function GenerateBudgetPage() {
   const [downloadLink, setDownloadLink] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // fucking work
+
   useEffect(() => {
     async function fetchAndSummarizeChunks() {
       try {
