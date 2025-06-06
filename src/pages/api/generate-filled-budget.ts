@@ -124,4 +124,4 @@ If a field has no info in the draft, suggest something reasonable.
     console.error(err);
     return res.status(500).json({ error: 'Failed to process budget tab' });
   }
-}
+} 
