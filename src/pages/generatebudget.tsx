@@ -1,4 +1,6 @@
-import { useEffect, useState, ChangeEvent, FormEvent } from 'react';
+import { useState, useEffect, ChangeEvent, FormEvent } from 'react';
+import * as XLSX from 'xlsx'; // for reading Excel in browser
+
 
 export default function GenerateBudgetPage() {
   const [draftNotes, setDraftNotes] = useState('');
@@ -72,45 +74,71 @@ export default function GenerateBudgetPage() {
     }
   };
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!file || !selectedTab) {
-      setError('Please upload a file and select a tab');
-      return;
+const handleSubmit = async (e: FormEvent) => {
+  e.preventDefault();
+  if (!file || !selectedTab) {
+    setError('Please upload a file and select a tab');
+    return;
+  }
+
+  setIsSubmitting(true);
+  setError('');
+  setDownloadLink(null);
+
+  try {
+    // ⬇️ STEP 1: Read instructions from first sheet
+    const fileArrayBuffer = await file.arrayBuffer();
+    const workbook = XLSX.read(fileArrayBuffer, { type: 'array' });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const instructionsText = XLSX.utils.sheet_to_txt(firstSheet);
+
+    // ⬇️ STEP 2: Call GPT to generate filled values
+    const fillRes = await fetch('/api/fill-values-only', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        draftNotes,
+        instructionsText,
+        tabName: selectedTab,
+      }),
+    });
+
+    if (!fillRes.ok) {
+      const { error } = await fillRes.json();
+      throw new Error(error || 'Failed to generate filled values');
     }
 
-    setIsSubmitting(true);
-    setError('');
-    setDownloadLink(null);
+    const { filledCells } = await fillRes.json();
 
+    // ⬇️ STEP 3: Send filled values + Excel file to generate .xlsm
     const formData = new FormData();
     formData.append('file', file);
     formData.append('tabName', selectedTab);
-    formData.append('draftNotes', draftNotes);
+    formData.append('filledCells', JSON.stringify(filledCells));
 
-    try {
-      const res = await fetch('/api/generate-filled-budget', {
-        method: 'POST',
-        body: formData,
-      });
+    const genRes = await fetch('/api/generate-filled-budget', {
+      method: 'POST',
+      body: formData,
+    });
 
-      if (!res.ok) {
-        const { error } = await res.json();
-        throw new Error(error || 'Failed to generate filled budget');
-      }
-
-      const { base64Xlsm } = await res.json();
-      const blob = new Blob([Uint8Array.from(atob(base64Xlsm), c => c.charCodeAt(0))], {
-        type: 'application/vnd.ms-excel.sheet.macroEnabled.12',
-      });
-      const url = URL.createObjectURL(blob);
-      setDownloadLink(url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error during budget generation');
-    } finally {
-      setIsSubmitting(false);
+    if (!genRes.ok) {
+      const { error } = await genRes.json();
+      throw new Error(error || 'Failed to generate Excel file');
     }
-  };
+
+    const { base64Xlsm } = await genRes.json();
+
+    const blob = new Blob([Uint8Array.from(atob(base64Xlsm), c => c.charCodeAt(0))], {
+      type: 'application/vnd.ms-excel.sheet.macroEnabled.12',
+    });
+    const url = URL.createObjectURL(blob);
+    setDownloadLink(url);
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'Unexpected error');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-white text-gray-800 p-10 space-y-8">
